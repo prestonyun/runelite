@@ -9,23 +9,17 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
-import javax.annotation.Nullable;
 import javax.inject.Inject;
-import javax.swing.*;
 
 import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.drafts.Draft_6455;
-import org.java_websocket.handshake.ServerHandshake;
-import org.json.JSONException;
 import org.json.JSONObject;
 
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.*;
 import net.runelite.api.coords.WorldPoint;
-import net.runelite.api.events.AnimationChanged;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.client.config.ConfigManager;
@@ -83,7 +77,7 @@ public class StateDataPlugin extends Plugin
 		ws = new PythonConnection(new URI("ws://localhost:8765"), new Draft_6455());
 		ws.connect();
 
-		final BufferedImage icon = ImageUtil.loadImageResource(getClass(), "notes_icon.png");
+		final BufferedImage icon = ImageUtil.loadImageResource(getClass(), "combaticon.png");
 
 		navButton = NavigationButton.builder()
 				.tooltip("State Data")
@@ -125,22 +119,10 @@ public class StateDataPlugin extends Plugin
 			scenetiles = client.getScene().getTiles();
 
 			obj.put("location", "[" + lastTickLocation.getX() + ", " + lastTickLocation.getY() + "]");
-			//obj.put("items", client.getItemContainers().toString());
-			//obj.put("camera", client.getCameraPitch() + ", " + client.getCameraYaw() + ", " + client.get3dZoom());
-			//obj.put("goblins", client.getCachedNPCs()[NpcID.GOBLIN.getIndex()]);
-			for (int i = 0; i < client.getNpcs().toArray().length; i++)
-			{
-				if (client.getNpcs().get(i).getId() == NpcID.GOBLIN)
-				{
-					int x = client.getNpcs().get(i).getWorldLocation().getX();
-					int y = client.getNpcs().get(i).getWorldLocation().getY();
-					obj.put("goblin", "[" + x + ", " + y + "]");
-				}
-			}
 
 			obj.put("energy", runEnergy);
 			obj.put("health", lastHitPoints);
-			//obj.put("Prayerpoints", lastPrayerPoints);
+			obj.put("Prayerpoints", lastPrayerPoints);
 
 			String message = obj.toString();
 			ws.send(message);
