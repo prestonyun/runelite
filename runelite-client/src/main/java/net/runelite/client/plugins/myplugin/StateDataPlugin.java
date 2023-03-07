@@ -54,7 +54,7 @@ public class StateDataPlugin extends Plugin
 	private int runEnergy;
 	private int lastPrayerPoints;
 	private java.util.List<WorldPoint> worldPointsList;
-	private Tile[][][] scenetiles;
+	private int[] validmovements;
 
 	private WebSocketClient ws;
 
@@ -109,15 +109,27 @@ public class StateDataPlugin extends Plugin
 
 			JSONObject obj = new JSONObject();
 			JSONObject env = new JSONObject();
+			validmovements = new int[]{0, 0, 0, 0, 0, 0, 0, 0};
 			lastTickLocation = client.getLocalPlayer().getWorldLocation();
 			lastHitPoints = client.getRealSkillLevel(Skill.HITPOINTS);
 			lastPrayerPoints = client.getRealSkillLevel(Skill.PRAYER);
 			runEnergy = client.getEnergy();
 
-			worldPointsList = client.getLocalPlayer().getWorldArea().toWorldPointList();
+			WorldPoint north = new WorldPoint(lastTickLocation.getX(), lastTickLocation.getY() + 2, lastTickLocation.getPlane());
+			WorldPoint northeast = new WorldPoint(lastTickLocation.getX() + 2, lastTickLocation.getY() + 2, lastTickLocation.getPlane());
+			WorldPoint east = new WorldPoint(lastTickLocation.getX() + 2, lastTickLocation.getY(), lastTickLocation.getPlane());
+			WorldPoint southeast = new WorldPoint(lastTickLocation.getX() + 2, lastTickLocation.getY() -2, lastTickLocation.getPlane());
+			WorldPoint south = new WorldPoint(lastTickLocation.getX(), lastTickLocation.getY() - 2, lastTickLocation.getPlane());
+			WorldPoint southwest = new WorldPoint(lastTickLocation.getX() - 2, lastTickLocation.getY() - 2, lastTickLocation.getPlane());
+			WorldPoint west = new WorldPoint(lastTickLocation.getX() - 2, lastTickLocation.getY(), lastTickLocation.getPlane());
+			WorldPoint northwest = new WorldPoint(lastTickLocation.getX() - 2, lastTickLocation.getY() + 2, lastTickLocation.getPlane());
 
-			scenetiles = client.getScene().getTiles();
+			if (lastTickLocation.toWorldArea().canTravelInDirection(client, 0, 1) && lastTickLocation.toWorldArea().contains(north))
+				validmovements[0] = 1;
+			else
+				validmovements[0] = 0;
 
+			obj.put("valid_movements", validmovements[0]);
 			obj.put("location", "[" + lastTickLocation.getX() + ", " + lastTickLocation.getY() + "]");
 
 			obj.put("energy", runEnergy);
