@@ -3,13 +3,12 @@ package net.runelite.client.plugins.myplugin;
 import com.google.inject.Provides;
 
 import java.awt.*;
-import java.awt.datatransfer.StringSelection;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
+import java.util.List;
 import javax.inject.Inject;
 
 import org.java_websocket.client.WebSocketClient;
@@ -29,6 +28,7 @@ import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.util.ImageUtil;
+import net.runelite.client.game.walking.Reachable;
 
 @Slf4j
 @PluginDescriptor(
@@ -115,21 +115,9 @@ public class StateDataPlugin extends Plugin
 			lastPrayerPoints = client.getRealSkillLevel(Skill.PRAYER);
 			runEnergy = client.getEnergy();
 
-			WorldPoint north = new WorldPoint(lastTickLocation.getX(), lastTickLocation.getY() + 2, lastTickLocation.getPlane());
-			WorldPoint northeast = new WorldPoint(lastTickLocation.getX() + 2, lastTickLocation.getY() + 2, lastTickLocation.getPlane());
-			WorldPoint east = new WorldPoint(lastTickLocation.getX() + 2, lastTickLocation.getY(), lastTickLocation.getPlane());
-			WorldPoint southeast = new WorldPoint(lastTickLocation.getX() + 2, lastTickLocation.getY() -2, lastTickLocation.getPlane());
-			WorldPoint south = new WorldPoint(lastTickLocation.getX(), lastTickLocation.getY() - 2, lastTickLocation.getPlane());
-			WorldPoint southwest = new WorldPoint(lastTickLocation.getX() - 2, lastTickLocation.getY() - 2, lastTickLocation.getPlane());
-			WorldPoint west = new WorldPoint(lastTickLocation.getX() - 2, lastTickLocation.getY(), lastTickLocation.getPlane());
-			WorldPoint northwest = new WorldPoint(lastTickLocation.getX() - 2, lastTickLocation.getY() + 2, lastTickLocation.getPlane());
 
-			if (lastTickLocation.toWorldArea().canTravelInDirection(client, 0, 1) && lastTickLocation.toWorldArea().contains(north))
-				validmovements[0] = 1;
-			else
-				validmovements[0] = 0;
 
-			obj.put("valid_movements", validmovements[0]);
+			obj.put("valid_movements", printValidMovementLocations(getValidMovementLocations(client, lastTickLocation, 25)));
 			obj.put("location", "[" + lastTickLocation.getX() + ", " + lastTickLocation.getY() + "]");
 
 			obj.put("energy", runEnergy);
@@ -151,18 +139,41 @@ public class StateDataPlugin extends Plugin
 		}
 	}
 
-	void updateData(String data, int hp, int pp, int run)
-	{
-		String jsonData = "{'World Location':'" + data + "','Hitpoints':" + hp + ",'Prayer Points':" + pp + ", 'Run Energy':" + run + "}";
-		panel.setData(jsonData);
-		Toolkit.getDefaultToolkit()
-				.getSystemClipboard()
-				.setContents(
-						new StringSelection(jsonData),
-						null
-				);
-		//SwingUtilities.invokeLater(() -> panel.setData(data));
+	private List<WorldPoint> getValidMovementLocations(Client client, WorldPoint startPoint, int maxDistance) {
+		List<WorldPoint> validLocations = new ArrayList<>();
+		LinkedList<WorldPoint> queue = new LinkedList<>();
+		Set<WorldPoint> visited = new HashSet<>();
+
+		queue.add(startPoint);
+		visited.add(startPoint);
+
+		while (!queue.isEmpty()) {
+			WorldPoint current = queue.removeFirst();
+			if (current.distanceTo(startPoint) > maxDistance) {
+				continue;
+			}
+
+			if (Reachable.isWalkable(client, current)) {
+				validLocations.add(current);
+			}
+			List<WorldPoint> neighbors = Reachable.getNeighbours(client, startPoint, null);
+			for (WorldPoint neighbor : neighbors) {
+				if (!visited.contains(neighbor)) {
+					queue.add(neighbor);
+					visited.add(neighbor);
+				}
+			}
+		}
+
+		return validLocations;
 	}
 
+	private String printValidMovementLocations(List<WorldPoint> locations) {
+		String result = Arrays.toString(locations.toArray())
+				.replace('[', '[')
+				.replace(']', ']')
+				.replace(',', ',');
+		return result;
+	}
 
 }
