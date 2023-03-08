@@ -8,9 +8,11 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.*;
+import java.util.Deque;
 import java.util.List;
 import javax.inject.Inject;
 
+import net.runelite.api.events.ItemContainerChanged;
 import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.drafts.Draft_6455;
 import org.json.JSONObject;
@@ -48,13 +50,12 @@ public class StateDataPlugin extends Plugin
 	private StateDataPanel panel;
 
 	private NavigationButton navButton;
-	private String data;
 	private WorldPoint lastTickLocation;
 	private int lastHitPoints;
 	private int runEnergy;
 	private int lastPrayerPoints;
-	private java.util.List<WorldPoint> worldPointsList;
-	private int[] validmovements;
+	private ItemContainer previousInventory;
+
 
 	private WebSocketClient ws;
 
@@ -100,6 +101,14 @@ public class StateDataPlugin extends Plugin
 	}
 
 	@Subscribe
+	public void onItemContainerChanged(ItemContainerChanged event) {
+		if (event.getItemContainer() == client.getItemContainer(InventoryID.INVENTORY)) {
+			//TODO: functionality for Python output
+			printInventory();
+		}
+	}
+
+	@Subscribe
 	public void onGameTick(GameTick t) throws IOException, URISyntaxException {
 		if (client.getGameState() != GameState.LOGGED_IN)
 		{
@@ -108,8 +117,6 @@ public class StateDataPlugin extends Plugin
 		else {
 
 			JSONObject obj = new JSONObject();
-			JSONObject env = new JSONObject();
-			validmovements = new int[]{0, 0, 0, 0, 0, 0, 0, 0};
 			lastTickLocation = client.getLocalPlayer().getWorldLocation();
 			lastHitPoints = client.getRealSkillLevel(Skill.HITPOINTS);
 			lastPrayerPoints = client.getRealSkillLevel(Skill.PRAYER);
@@ -117,7 +124,7 @@ public class StateDataPlugin extends Plugin
 
 
 
-			obj.put("valid_movements", printValidMovementLocations(getValidMovementLocations(client, lastTickLocation, 25)));
+			obj.put("valid_movements", printValidMovementLocations(getValidMovementLocations(client, lastTickLocation, 10)));
 			obj.put("location", "[" + lastTickLocation.getX() + ", " + lastTickLocation.getY() + "]");
 
 			obj.put("energy", runEnergy);
@@ -139,9 +146,17 @@ public class StateDataPlugin extends Plugin
 		}
 	}
 
+	public Item[] printInventory() {
+		ItemContainer inventory = client.getItemContainer(InventoryID.INVENTORY);
+		if (inventory != null) {
+			return inventory.getItems();
+		}
+		return null;
+	}
+
 	private List<WorldPoint> getValidMovementLocations(Client client, WorldPoint startPoint, int maxDistance) {
 		List<WorldPoint> validLocations = new ArrayList<>();
-		LinkedList<WorldPoint> queue = new LinkedList<>();
+		Deque<WorldPoint> queue = new ArrayDeque<>();
 		Set<WorldPoint> visited = new HashSet<>();
 
 		queue.add(startPoint);
@@ -156,11 +171,10 @@ public class StateDataPlugin extends Plugin
 			if (Reachable.isWalkable(client, current)) {
 				validLocations.add(current);
 			}
-			List<WorldPoint> neighbors = Reachable.getNeighbours(client, startPoint, null);
-			for (WorldPoint neighbor : neighbors) {
-				if (!visited.contains(neighbor)) {
-					queue.add(neighbor);
-					visited.add(neighbor);
+
+			for (WorldPoint neighbor : Reachable.getNeighbours(client, current, null)) {
+				if (visited.add(neighbor)) {
+					queue.addLast(neighbor);
 				}
 			}
 		}
@@ -169,11 +183,20 @@ public class StateDataPlugin extends Plugin
 	}
 
 	private String printValidMovementLocations(List<WorldPoint> locations) {
-		String result = Arrays.toString(locations.toArray())
-				.replace('[', '[')
-				.replace(']', ']')
-				.replace(',', ',');
-		return result;
+		StringBuilder resultBuilder = new StringBuilder("[");
+		for (WorldPoint loc : locations) {
+			resultBuilder.append("[")
+					.append(loc.getX())
+					.append(", ")
+					.append(loc.getY())
+					.append("],");
+		}
+		// remove the trailing comma
+		if (locations.size() > 0) {
+			resultBuilder.setLength(resultBuilder.length() - 1);
+		}
+		resultBuilder.append("]");
+		return resultBuilder.toString();
 	}
 
 }
