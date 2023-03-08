@@ -55,6 +55,7 @@ public interface Model extends Mesh, Renderable
 	int getRadius();
 	int getDiameter();
 
+	@Deprecated
 	float[] getFaceTextureUVCoordinates();
 
 	/**
@@ -77,4 +78,10 @@ public interface Model extends Mesh, Renderable
 	byte getOverrideHue();
 	byte getOverrideSaturation();
 	byte getOverrideLuminance();
+
+	byte[] getTextureFaces();
+
+	int[] getTexIndices1();
+	int[] getTexIndices2();
+	int[] getTexIndices3();
 }

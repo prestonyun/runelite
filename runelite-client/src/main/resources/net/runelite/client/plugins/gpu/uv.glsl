@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, Adam <Adam@sigterm.info>
+ * Copyright (c) 2023, Adam <Adam@sigterm.info>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -22,53 +22,37 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package net.runelite.cache.definitions.savers;
 
-import net.runelite.cache.definitions.MapDefinition;
-import net.runelite.cache.definitions.MapDefinition.Tile;
-import net.runelite.cache.io.OutputStream;
-import static net.runelite.cache.region.Region.X;
-import static net.runelite.cache.region.Region.Y;
-import static net.runelite.cache.region.Region.Z;
+void compute_uv(
+      vec3   f1,    vec3   f2,     vec3   f3,
+      vec3   t1,    vec3   t2,     vec3   t3,
+  out vec2  uv1, out vec2 uv2, out vec2  uv3
+) {
+    vec3 v1 = t1;
+    vec3 v2 = t2 - v1;
+    vec3 v3 = t3 - v1;
 
-public class MapSaver
-{
-	public byte[] save(MapDefinition map)
-	{
-		Tile[][][] tiles = map.getTiles();
-		OutputStream out = new OutputStream();
-		for (int z = 0; z < Z; z++)
-		{
-			for (int x = 0; x < X; x++)
-			{
-				for (int y = 0; y < Y; y++)
-				{
-					Tile tile = tiles[z][x][y];
-					if (tile.attrOpcode != 0)
-					{
-						out.writeByte(tile.attrOpcode);
-						out.writeByte(tile.overlayId);
-					}
-					if (tile.settings != 0)
-					{
-						out.writeByte(tile.settings + 49);
-					}
-					if (tile.underlayId != 0)
-					{
-						out.writeByte(tile.underlayId + 81);
-					}
-					if (tile.height == null)
-					{
-						out.writeByte(0);
-					}
-					else
-					{
-						out.writeByte(1);
-						out.writeByte(tile.height);
-					}
-				}
-			}
-		}
-		return out.flip();
-	}
+    vec3 v4 = f1 - v1;
+    vec3 v5 = f2 - v1;
+    vec3 v6 = f3 - v1;
+
+    vec3 v7 = cross(v2, v3);
+
+    vec3 v8 = cross(v3, v7);
+    float d = 1.0f / dot(v8, v2);
+
+    float u0 = dot(v8, v4) * d;
+    float u1 = dot(v8, v5) * d;
+    float u2 = dot(v8, v6) * d;
+
+    v8 = cross(v2, v7);
+    d = 1.0f / dot(v8, v3);
+
+    float v0_ = dot(v8, v4) * d;
+    float v1_ = dot(v8, v5) * d;
+    float v2_ = dot(v8, v6) * d;
+
+    uv1 = vec2(u0, v0_);
+    uv2 = vec2(u1, v1_);
+    uv3 = vec2(u2, v2_);
 }
