@@ -10,6 +10,8 @@ import java.net.URISyntaxException;
 import java.util.*;
 import java.util.Deque;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import javax.inject.Inject;
 
 import net.runelite.api.events.ItemContainerChanged;
@@ -51,9 +53,6 @@ public class StateDataPlugin extends Plugin
 
 	private NavigationButton navButton;
 	private WorldPoint lastTickLocation;
-	private int lastHitPoints;
-	private int runEnergy;
-	private int lastPrayerPoints;
 	private ItemContainer previousInventory;
 
 
@@ -88,6 +87,7 @@ public class StateDataPlugin extends Plugin
 				.build();
 
 		clientToolbar.addNavigation(navButton);
+		previousInventory = client.getItemContainer(InventoryID.INVENTORY);
 	}
 
 	@Override
@@ -98,13 +98,13 @@ public class StateDataPlugin extends Plugin
 		panel = null;
 		clientToolbar.removeNavigation(navButton);
 		ws.close();
+		previousInventory = null;
 	}
 
 	@Subscribe
 	public void onItemContainerChanged(ItemContainerChanged event) {
 		if (event.getItemContainer() == client.getItemContainer(InventoryID.INVENTORY)) {
-			//TODO: functionality for Python output
-			printInventory();
+			previousInventory = null;
 		}
 	}
 
@@ -118,18 +118,14 @@ public class StateDataPlugin extends Plugin
 
 			JSONObject obj = new JSONObject();
 			lastTickLocation = client.getLocalPlayer().getWorldLocation();
-			lastHitPoints = client.getRealSkillLevel(Skill.HITPOINTS);
-			lastPrayerPoints = client.getRealSkillLevel(Skill.PRAYER);
-			runEnergy = client.getEnergy();
 
-
-
-			obj.put("valid_movements", printValidMovementLocations(getValidMovementLocations(client, lastTickLocation, 10)));
 			obj.put("location", "[" + lastTickLocation.getX() + ", " + lastTickLocation.getY() + "]");
 
-			obj.put("energy", runEnergy);
-			obj.put("health", lastHitPoints);
-			obj.put("Prayerpoints", lastPrayerPoints);
+			obj.put("health", client.getRealSkillLevel(Skill.HITPOINTS));
+			obj.put("Prayerpoints", client.getRealSkillLevel(Skill.PRAYER));
+			obj.put("energy", client.getEnergy());
+			obj.put("valid_movements", getValidMovementLocationsAsString(client, lastTickLocation, 10));
+			obj.put("inventory", getInventoryAsString());
 
 			String message = obj.toString();
 			ws.send(message);
@@ -146,15 +142,25 @@ public class StateDataPlugin extends Plugin
 		}
 	}
 
-	public Item[] printInventory() {
-		ItemContainer inventory = client.getItemContainer(InventoryID.INVENTORY);
+	public String getInventoryAsString() {
+		ItemContainer inventory = client.getItemContainer(net.runelite.api.InventoryID.INVENTORY);
 		if (inventory != null) {
-			return inventory.getItems();
+			Item[] items = inventory.getItems();
+			String inventoryString = Arrays.stream(items)
+					.map(item -> String.valueOf(item != null ? item.getId() : -1))
+					.collect(Collectors.joining(", ", "[", "]"));
+			return inventoryString;
+		} else {
+			// Return inventory with placeholders
+			String inventoryString = IntStream.range(0, 28)
+					.mapToObj(i -> String.valueOf(-1))
+					.collect(Collectors.joining(", ", "[", "]"));
+			return inventoryString;
 		}
-		return null;
 	}
 
-	private List<WorldPoint> getValidMovementLocations(Client client, WorldPoint startPoint, int maxDistance) {
+
+	public String getValidMovementLocationsAsString(Client client, WorldPoint startPoint, int maxDistance) {
 		List<WorldPoint> validLocations = new ArrayList<>();
 		Deque<WorldPoint> queue = new ArrayDeque<>();
 		Set<WorldPoint> visited = new HashSet<>();
@@ -179,24 +185,17 @@ public class StateDataPlugin extends Plugin
 			}
 		}
 
-		return validLocations;
-	}
+		StringBuilder sb = new StringBuilder("[");
+		for (WorldPoint location : validLocations) {
+			sb.append(location.getX()).append(",").append(location.getY()).append(",");
+		}
+		for (int i = validLocations.size(); i < 100; i++) {
+			sb.append("-1,-1,");
+		}
+		sb.deleteCharAt(sb.length() - 1);
+		sb.append("]");
 
-	private String printValidMovementLocations(List<WorldPoint> locations) {
-		StringBuilder resultBuilder = new StringBuilder("[");
-		for (WorldPoint loc : locations) {
-			resultBuilder.append("[")
-					.append(loc.getX())
-					.append(", ")
-					.append(loc.getY())
-					.append("],");
-		}
-		// remove the trailing comma
-		if (locations.size() > 0) {
-			resultBuilder.setLength(resultBuilder.length() - 1);
-		}
-		resultBuilder.append("]");
-		return resultBuilder.toString();
+		return sb.toString();
 	}
 
 }
