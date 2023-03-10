@@ -22,6 +22,7 @@ import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 
+import net.runelite.api.events.ClientTick;
 import net.runelite.api.events.ItemContainerChanged;
 import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.drafts.Draft_6455;
@@ -154,6 +155,27 @@ public class StateDataPlugin extends Plugin
 	}
 
 	@Subscribe
+	public void onClientTick(ClientTick t) {
+		if (!ws.isConnected())
+		{
+			ws.connect();
+		}
+
+		int gameTick = client.getGameCycle();
+		int clientTick = client.getTickCount();
+
+
+		if (ws.isConnected())
+		{
+			StringBuilder sb = new StringBuilder("[");
+			sb.append(String.valueOf(gameTick)).append(',').append(String.valueOf(clientTick)).append(']');
+			JSONObject obj = new JSONObject();
+			obj.put("gametick", sb.toString());
+			ws.send(obj.toString());
+		}
+	}
+
+	@Subscribe
 	public void onGameTick(GameTick t) throws IOException, URISyntaxException {
 		if (client.getGameState() != GameState.LOGGED_IN)
 		{
@@ -172,8 +194,7 @@ public class StateDataPlugin extends Plugin
 			obj.put("valid_movements", getValidMovementLocationsAsString(client, lastTickLocation, 10));
 			obj.put("inventory", getInventoryAsString());
 
-			String message = obj.toString();
-			ws.send(message);
+			ws.send(obj.toString());
 
 		}
 	}
