@@ -115,6 +115,7 @@ public class StateDataPlugin extends Plugin
 
 		SSLSocketFactory factory = sslContext.getSocketFactory();
 		ws = new PythonConnection(new URI(serverUri));
+		//ws = new PythonConnection(new URI("wss://localhost:8765"), new Draft_6455());
 		ws.setSocket(factory.createSocket());
 		ws.connect();
 
@@ -154,12 +155,8 @@ public class StateDataPlugin extends Plugin
 		}
 	}
 
-	@Subscribe
+/*	@Subscribe
 	public void onClientTick(ClientTick t) {
-		if (!ws.isConnected())
-		{
-			ws.connect();
-		}
 
 		int gameTick = client.getGameCycle();
 		int clientTick = client.getTickCount();
@@ -173,7 +170,7 @@ public class StateDataPlugin extends Plugin
 			obj.put("gametick", sb.toString());
 			ws.send(obj.toString());
 		}
-	}
+	}*/
 
 	@Subscribe
 	public void onGameTick(GameTick t) throws IOException, URISyntaxException {
@@ -188,8 +185,8 @@ public class StateDataPlugin extends Plugin
 
 			obj.put("location", "[" + lastTickLocation.getX() + ", " + lastTickLocation.getY() + "]");
 
-			obj.put("health", client.getRealSkillLevel(Skill.HITPOINTS));
-			obj.put("Prayerpoints", client.getRealSkillLevel(Skill.PRAYER));
+			obj.put("hitpoints", client.getRealSkillLevel(Skill.HITPOINTS));
+			obj.put("prayerpoints", client.getRealSkillLevel(Skill.PRAYER));
 			obj.put("energy", client.getEnergy());
 			obj.put("valid_movements", getValidMovementLocationsAsString(client, lastTickLocation, 10));
 			obj.put("inventory", getInventoryAsString());
@@ -212,14 +209,18 @@ public class StateDataPlugin extends Plugin
 		ItemContainer inventory = client.getItemContainer(net.runelite.api.InventoryID.INVENTORY);
 		if (inventory != null) {
 			Item[] items = inventory.getItems();
-			String inventoryString = Arrays.stream(items)
-					.map(item -> String.valueOf(item != null ? item.getId() : -1))
+			String[] fixedSizeItems = new String[28];
+			Arrays.fill(fixedSizeItems, "-1");
+			for (int i = 0; i < items.length && i < fixedSizeItems.length; i++) {
+				if (items[i] != null) {
+					fixedSizeItems[i] = String.valueOf(items[i].getId());
+				}
+			}
+			String inventoryString = Arrays.stream(fixedSizeItems)
 					.map(id -> String.format("%2s", id))
-					.limit(28)
 					.collect(Collectors.joining(", ", "[", "]"));
 			return inventoryString;
 		} else {
-			// Return inventory with placeholders
 			String inventoryString = IntStream.range(0, 28)
 					.mapToObj(i -> String.valueOf(-1))
 					.collect(Collectors.joining(", ", "[", "]"));
@@ -228,22 +229,25 @@ public class StateDataPlugin extends Plugin
 	}
 
 
+
 	public String getValidMovementLocationsAsString(Client client, WorldPoint startPoint, int maxDistance) {
-		List<WorldPoint> validLocations = new ArrayList<>();
+		WorldPoint[] validLocations = new WorldPoint[410];
+		int count = 0;
 		Deque<WorldPoint> queue = new ArrayDeque<>();
 		Set<WorldPoint> visited = new HashSet<>();
 
 		queue.add(startPoint);
 		visited.add(startPoint);
 
-		while (!queue.isEmpty()) {
+		while (!queue.isEmpty() && count < 410) {
 			WorldPoint current = queue.removeFirst();
 			if (current.distanceTo(startPoint) > maxDistance) {
 				continue;
 			}
 
 			if (Reachable.isWalkable(client, current)) {
-				validLocations.add(current);
+				validLocations[count] = current;
+				count++;
 			}
 
 			for (WorldPoint neighbor : Reachable.getNeighbours(client, current, null)) {
@@ -252,18 +256,20 @@ public class StateDataPlugin extends Plugin
 				}
 			}
 		}
-		System.out.println(validLocations.size());
 		StringBuilder sb = new StringBuilder("[");
-		for (WorldPoint location : validLocations) {
-			sb.append("[").append(location.getX()).append(",").append(location.getY()).append("]").append(",");
-		}
-		for (int i = validLocations.size(); i < 410; i++) {
-			sb.append("[-1,-1],");
+		for (int i = 0; i < validLocations.length; i++) {
+			WorldPoint location = validLocations[i];
+			if (location != null) {
+				sb.append("[").append(location.getX()).append(",").append(location.getY()).append("]").append(",");
+			} else {
+				sb.append("[-1,-1],");
+			}
 		}
 		sb.deleteCharAt(sb.length() - 1);
 		sb.append("]");
 
 		return sb.toString();
 	}
+
 
 }
