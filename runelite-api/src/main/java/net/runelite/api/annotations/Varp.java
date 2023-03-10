@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, Adam <Adam@sigterm.info>
+ * Copyright (c) 2023, Adam <Adam@sigterm.info>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -22,30 +22,17 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package net.runelite.client.plugins.devtools;
+package net.runelite.api.annotations;
 
-import javax.swing.tree.DefaultMutableTreeNode;
-import net.runelite.api.widgets.WidgetItem;
+import java.lang.annotation.Documented;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import net.runelite.api.VarPlayer;
+import org.intellij.lang.annotations.MagicConstant;
 
-class WidgetItemNode extends DefaultMutableTreeNode
+@MagicConstant(valuesFromClass = VarPlayer.class)
+@Documented
+@Retention(RetentionPolicy.SOURCE)
+public @interface Varp
 {
-	private final WidgetItem widgetItem;
-
-	public WidgetItemNode(WidgetItem widgetItem)
-	{
-		super(widgetItem);
-		this.widgetItem = widgetItem;
-	}
-
-	public WidgetItem getWidgetItem()
-	{
-		return widgetItem;
-	}
-
-	@Override
-	public String toString()
-	{
-		return "I " + widgetItem.getIndex();
-	}
-
 }
