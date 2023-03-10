@@ -6,6 +6,7 @@ import org.java_websocket.handshake.ServerHandshake;
 import org.json.JSONObject;
 
 import java.net.URI;
+import java.net.URISyntaxException;
 
 public class PythonConnection extends WebSocketClient {
 
@@ -13,7 +14,7 @@ public class PythonConnection extends WebSocketClient {
         super(serverUri, draft);
     }
 
-    public PythonConnection(URI serverUri) {
+    public PythonConnection(URI serverUri) throws URISyntaxException {
         super(serverUri);
     }
 
@@ -34,6 +35,6 @@ public class PythonConnection extends WebSocketClient {
 
     @Override
     public void onError(Exception e) {
-        e.printStackTrace();
+        System.err.println("An error occurred: " + e.getMessage());
     }
 }
