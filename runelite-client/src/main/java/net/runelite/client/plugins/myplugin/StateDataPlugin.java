@@ -4,15 +4,23 @@ import com.google.inject.Provides;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
 import java.util.*;
 import java.util.Deque;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.inject.Inject;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 
 import net.runelite.api.events.ItemContainerChanged;
 import org.java_websocket.client.WebSocketClient;
@@ -55,8 +63,10 @@ public class StateDataPlugin extends Plugin
 	private WorldPoint lastTickLocation;
 	private ItemContainer previousInventory;
 
+	//private WebsocketClient ws;
+	private PythonConnection ws;
 
-	private WebSocketClient ws;
+	private Properties props;
 
 	@Getter
 	private final Set<GameObject> treeObjects = new HashSet<>();
@@ -70,12 +80,47 @@ public class StateDataPlugin extends Plugin
 	@Override
 	protected void startUp() throws Exception
 	{
+		System.out.println(System.getProperty("user.dir"));
 		panel = injector.getInstance(StateDataPanel.class);
 		panel.init(config);
 		log.info("Example started!");
 
-		ws = new PythonConnection(new URI("ws://localhost:8765"), new Draft_6455());
+		props = new Properties();
+		try (InputStream input = new FileInputStream("config.properties"))
+		{
+			props.load(input);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+
+		String serverUri = props.getProperty("serverUri");
+		SSLContext sslContext = SSLContext.getInstance("TLS");
+		sslContext.init(null, new TrustManager[] {new X509TrustManager() {
+			@Override
+			public void checkClientTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
+
+			}
+
+			@Override
+			public void checkServerTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
+
+			}
+
+			@Override
+			public X509Certificate[] getAcceptedIssuers() {
+				return new X509Certificate[]{};
+			}
+		}}, null);
+
+		SSLSocketFactory factory = sslContext.getSocketFactory();
+		ws = new PythonConnection(new URI(serverUri));
+		ws.setSocket(factory.createSocket());
 		ws.connect();
+
+
+		//ws = new PythonConnection(new URI("ws://localhost:8765"), new Draft_6455());
+		//ws = new PythonConnection(new URI("wss://prestonyun-automatic-potato-ppx5v7x74ghr757-8765.preview.app.github.dev/"));
+		//ws.connect();
 
 		final BufferedImage icon = ImageUtil.loadImageResource(getClass(), "combaticon.png");
 
@@ -148,6 +193,8 @@ public class StateDataPlugin extends Plugin
 			Item[] items = inventory.getItems();
 			String inventoryString = Arrays.stream(items)
 					.map(item -> String.valueOf(item != null ? item.getId() : -1))
+					.map(id -> String.format("%2s", id))
+					.limit(28)
 					.collect(Collectors.joining(", ", "[", "]"));
 			return inventoryString;
 		} else {
@@ -184,13 +231,13 @@ public class StateDataPlugin extends Plugin
 				}
 			}
 		}
-
+		System.out.println(validLocations.size());
 		StringBuilder sb = new StringBuilder("[");
 		for (WorldPoint location : validLocations) {
-			sb.append(location.getX()).append(",").append(location.getY()).append(",");
+			sb.append("[").append(location.getX()).append(",").append(location.getY()).append("]").append(",");
 		}
-		for (int i = validLocations.size(); i < 100; i++) {
-			sb.append("-1,-1,");
+		for (int i = validLocations.size(); i < 410; i++) {
+			sb.append("[-1,-1],");
 		}
 		sb.deleteCharAt(sb.length() - 1);
 		sb.append("]");
