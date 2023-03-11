@@ -68,6 +68,7 @@ public class StateDataPlugin extends Plugin
 	private PythonConnection ws;
 
 	private Properties props;
+	private GameEnvironment ga;
 
 	@Getter
 	private final Set<GameObject> treeObjects = new HashSet<>();
@@ -85,6 +86,7 @@ public class StateDataPlugin extends Plugin
 		panel = injector.getInstance(StateDataPanel.class);
 		panel.init(config);
 		log.info("Example started!");
+		ga = new GameEnvironment(client);
 
 		props = new Properties();
 		try (InputStream input = new FileInputStream("config.properties"))
@@ -188,7 +190,8 @@ public class StateDataPlugin extends Plugin
 			obj.put("hitpoints", client.getRealSkillLevel(Skill.HITPOINTS));
 			obj.put("prayerpoints", client.getRealSkillLevel(Skill.PRAYER));
 			obj.put("energy", client.getEnergy());
-			obj.put("valid_movements", getValidMovementLocationsAsString(client, lastTickLocation, 10));
+			//obj.put("valid_movements", getValidMovementLocationsAsString(client, lastTickLocation, 10));
+			obj.put("env", ga.getRegionTilesAsList().toString());
 			obj.put("inventory", getInventoryAsString());
 
 			ws.send(obj.toString());
@@ -230,7 +233,7 @@ public class StateDataPlugin extends Plugin
 
 
 
-	public String getValidMovementLocationsAsString(Client client, WorldPoint startPoint, int maxDistance) {
+	/* public String getValidMovementLocationsAsString(Client client, WorldPoint startPoint, int maxDistance) {
 		WorldPoint[] validLocations = new WorldPoint[410];
 		int count = 0;
 		Deque<WorldPoint> queue = new ArrayDeque<>();
@@ -270,6 +273,7 @@ public class StateDataPlugin extends Plugin
 
 		return sb.toString();
 	}
+	 */
 
 
 }
