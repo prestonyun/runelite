@@ -191,7 +191,7 @@ public class StateDataPlugin extends Plugin
 			obj.put("prayerpoints", client.getRealSkillLevel(Skill.PRAYER));
 			obj.put("energy", client.getEnergy());
 			//obj.put("valid_movements", getValidMovementLocationsAsString(client, lastTickLocation, 10));
-			obj.put("env", ga.getRegionTilesAsList().toString());
+			obj.put("valid_movements", ga.getValidMovementLocationsAsString(client, lastTickLocation, 10));
 			obj.put("inventory", getInventoryAsString());
 
 			ws.send(obj.toString());
@@ -233,47 +233,7 @@ public class StateDataPlugin extends Plugin
 
 
 
-	/* public String getValidMovementLocationsAsString(Client client, WorldPoint startPoint, int maxDistance) {
-		WorldPoint[] validLocations = new WorldPoint[410];
-		int count = 0;
-		Deque<WorldPoint> queue = new ArrayDeque<>();
-		Set<WorldPoint> visited = new HashSet<>();
 
-		queue.add(startPoint);
-		visited.add(startPoint);
-
-		while (!queue.isEmpty() && count < 410) {
-			WorldPoint current = queue.removeFirst();
-			if (current.distanceTo(startPoint) > maxDistance) {
-				continue;
-			}
-
-			if (Reachable.isWalkable(client, current)) {
-				validLocations[count] = current;
-				count++;
-			}
-
-			for (WorldPoint neighbor : Reachable.getNeighbours(client, current, null)) {
-				if (visited.add(neighbor)) {
-					queue.addLast(neighbor);
-				}
-			}
-		}
-		StringBuilder sb = new StringBuilder("[");
-		for (int i = 0; i < validLocations.length; i++) {
-			WorldPoint location = validLocations[i];
-			if (location != null) {
-				sb.append("[").append(location.getX()).append(",").append(location.getY()).append("]").append(",");
-			} else {
-				sb.append("[-1,-1],");
-			}
-		}
-		sb.deleteCharAt(sb.length() - 1);
-		sb.append("]");
-
-		return sb.toString();
-	}
-	 */
 
 
 }
