@@ -23,10 +23,12 @@ import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 
+import net.runelite.api.Point;
 import net.runelite.api.coords.Angle;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetInfo;
+import net.runelite.api.widgets.WidgetItem;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.plugins.camera.CameraConfig;
 import org.java_websocket.client.WebSocketClient;
@@ -206,6 +208,7 @@ public class StateDataPlugin extends Plugin
 			ws.send(obj.toString());
 			ws.send(status.toString());
 			printCameraOrientation();
+			getInventoryItemPosition();
 
 		}
 	}
@@ -260,6 +263,26 @@ public class StateDataPlugin extends Plugin
 		else
 			state.put("zoom", 1);
 		return state;
+	}
+
+	public void getInventoryItemPosition()
+	{
+		Widget inventoryWidget = client.getWidget(WidgetInfo.INVENTORY);
+
+		for (int i = 0; i < 28; i ++)
+		{
+			WidgetItem w = getWidgetItem(inventoryWidget, i);
+			Rectangle widgetBounds = w.getCanvasBounds();
+			System.out.println(w.getWidget().getName() + ": " + widgetBounds.x + "," + (widgetBounds.x + widgetBounds.width) + " " +  widgetBounds.y + ", " + (widgetBounds.y + widgetBounds.height));
+
+		};
+	}
+
+	private static WidgetItem getWidgetItem(Widget parentWidget, int idx)
+	{
+		assert parentWidget.isIf3();
+		Widget wi = parentWidget.getChild(idx);
+		return new WidgetItem(wi.getItemId(), wi.getItemQuantity(), wi.getBounds(), parentWidget, wi.getBounds());
 	}
 
 }
