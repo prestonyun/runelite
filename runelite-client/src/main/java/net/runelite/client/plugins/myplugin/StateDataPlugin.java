@@ -1,5 +1,6 @@
 package net.runelite.client.plugins.myplugin;
 
+import com.google.common.primitives.Ints;
 import com.google.inject.Provides;
 
 import java.awt.*;
@@ -22,8 +23,12 @@ import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 
-import net.runelite.api.events.ClientTick;
+import net.runelite.api.coords.Angle;
 import net.runelite.api.events.ItemContainerChanged;
+import net.runelite.api.widgets.Widget;
+import net.runelite.api.widgets.WidgetInfo;
+import net.runelite.client.callback.ClientThread;
+import net.runelite.client.plugins.camera.CameraConfig;
 import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.drafts.Draft_6455;
 import org.json.JSONObject;
@@ -63,12 +68,16 @@ public class StateDataPlugin extends Plugin
 	private NavigationButton navButton;
 	private WorldPoint lastTickLocation;
 	private ItemContainer previousInventory;
+	@Inject
+	private ClientThread clientThread;
 
-	//private WebsocketClient ws;
 	private PythonConnection ws;
 
 	private Properties props;
 	private GameEnvironment ga;
+	private static final int DESIRED_PITCH = 512;
+	private static final int DESIRED_YAW = 0;
+
 
 	@Getter
 	private final Set<GameObject> treeObjects = new HashSet<>();
@@ -82,6 +91,20 @@ public class StateDataPlugin extends Plugin
 	@Override
 	protected void startUp() throws Exception
 	{
+		if (this.clientThread != null) {
+			clientThread.invoke(() ->
+			{
+				Widget settingsInit = client.getWidget(WidgetInfo.SETTINGS_INIT);
+				if (settingsInit != null)
+				{
+					client.createScriptEvent(settingsInit.getOnLoadListener())
+							.setSource(settingsInit)
+							.run();
+					clientThread.invokeLater(() -> client.runScript(ScriptID.CAMERA_DO_ZOOM, 433, 433));
+				}
+			});
+		}
+
 		System.out.println(System.getProperty("user.dir"));
 		panel = injector.getInstance(StateDataPanel.class);
 		panel.init(config);
@@ -116,15 +139,14 @@ public class StateDataPlugin extends Plugin
 		}}, null);
 
 		SSLSocketFactory factory = sslContext.getSocketFactory();
-		ws = new PythonConnection(new URI(serverUri));
-		//ws = new PythonConnection(new URI("wss://localhost:8765"), new Draft_6455());
-		ws.setSocket(factory.createSocket());
-		ws.connect();
-
-
-		//ws = new PythonConnection(new URI("ws://localhost:8765"), new Draft_6455());
-		//ws = new PythonConnection(new URI("wss://prestonyun-automatic-potato-ppx5v7x74ghr757-8765.preview.app.github.dev/"));
+		//ws = new PythonConnection(new URI(serverUri));
+		//ws.setSocket(factory.createSocket());
 		//ws.connect();
+
+
+		ws = new PythonConnection(new URI("ws://localhost:8765"), new Draft_6455());
+		//ws = new PythonConnection(new URI("wss://prestonyun-automatic-potato-ppx5v7x74ghr757-8765.preview.app.github.dev/"));
+		ws.connect();
 
 		final BufferedImage icon = ImageUtil.loadImageResource(getClass(), "combaticon.png");
 
@@ -157,23 +179,6 @@ public class StateDataPlugin extends Plugin
 		}
 	}
 
-/*	@Subscribe
-	public void onClientTick(ClientTick t) {
-
-		int gameTick = client.getGameCycle();
-		int clientTick = client.getTickCount();
-
-
-		if (ws.isConnected())
-		{
-			StringBuilder sb = new StringBuilder("[");
-			sb.append(String.valueOf(gameTick)).append(',').append(String.valueOf(clientTick)).append(']');
-			JSONObject obj = new JSONObject();
-			obj.put("gametick", sb.toString());
-			ws.send(obj.toString());
-		}
-	}*/
-
 	@Subscribe
 	public void onGameTick(GameTick t) throws IOException, URISyntaxException {
 		if (client.getGameState() != GameState.LOGGED_IN)
@@ -182,19 +187,25 @@ public class StateDataPlugin extends Plugin
 		}
 		else {
 
+
 			JSONObject obj = new JSONObject();
+			JSONObject status = new JSONObject();
+			obj.put("type", 0);
+			status.put("type", 1);
+			status = setCameraOrientation(status);
+
 			lastTickLocation = client.getLocalPlayer().getWorldLocation();
 
 			obj.put("location", "[" + lastTickLocation.getX() + ", " + lastTickLocation.getY() + "]");
-
 			obj.put("hitpoints", client.getRealSkillLevel(Skill.HITPOINTS));
 			obj.put("prayerpoints", client.getRealSkillLevel(Skill.PRAYER));
 			obj.put("energy", client.getEnergy());
-			//obj.put("valid_movements", getValidMovementLocationsAsString(client, lastTickLocation, 10));
 			obj.put("valid_movements", ga.getValidMovementLocationsAsString(client, lastTickLocation, 10));
 			obj.put("inventory", getInventoryAsString());
 
 			ws.send(obj.toString());
+			ws.send(status.toString());
+			printCameraOrientation();
 
 		}
 	}
@@ -231,9 +242,24 @@ public class StateDataPlugin extends Plugin
 		}
 	}
 
+	public void printCameraOrientation()
+	{
+		int pitch = client.getCameraPitch();
+		int yaw = client.getCameraYaw();
 
+		System.out.println("Camera Pitch: " + pitch);
+		System.out.println("Camera Yaw: " + yaw);
+	}
 
-
-
+	public JSONObject setCameraOrientation(JSONObject state)
+	{
+		if (client.getCameraPitch() != DESIRED_PITCH || client.getCameraYaw() != DESIRED_YAW) {
+			state.put("zoom", 0);
+			clientThread.invokeLater(() -> client.runScript(ScriptID.CAMERA_DO_ZOOM, 433, 433));
+		}
+		else
+			state.put("zoom", 1);
+		return state;
+	}
 
 }
