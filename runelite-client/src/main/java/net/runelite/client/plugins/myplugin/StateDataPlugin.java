@@ -107,7 +107,6 @@ public class StateDataPlugin extends Plugin
 			});
 		}
 
-		System.out.println(System.getProperty("user.dir"));
 		panel = injector.getInstance(StateDataPanel.class);
 		panel.init(config);
 		log.info("Example started!");
@@ -121,26 +120,8 @@ public class StateDataPlugin extends Plugin
 			e.printStackTrace();
 		}
 
-		String serverUri = props.getProperty("serverUri");
-		SSLContext sslContext = SSLContext.getInstance("TLS");
-		sslContext.init(null, new TrustManager[] {new X509TrustManager() {
-			@Override
-			public void checkClientTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
+		//String serverUri = props.getProperty("serverUri");
 
-			}
-
-			@Override
-			public void checkServerTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
-
-			}
-
-			@Override
-			public X509Certificate[] getAcceptedIssuers() {
-				return new X509Certificate[]{};
-			}
-		}}, null);
-
-		SSLSocketFactory factory = sslContext.getSocketFactory();
 		//ws = new PythonConnection(new URI(serverUri));
 		//ws.setSocket(factory.createSocket());
 		//ws.connect();
