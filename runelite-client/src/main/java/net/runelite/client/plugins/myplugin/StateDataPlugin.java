@@ -1,4 +1,5 @@
 package net.runelite.client.plugins.myplugin;
+
 import com.google.inject.Provides;
 import java.awt.*;
 import java.awt.image.BufferedImage;
@@ -7,12 +8,17 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.time.Instant;
 import java.util.*;
+import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.inject.Inject;
+
+import lombok.AccessLevel;
 import net.runelite.api.Point;
 import net.runelite.api.coords.LocalPoint;
+import net.runelite.api.events.GameObjectDespawned;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetInfo;
@@ -34,6 +40,7 @@ import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.util.ImageUtil;
 
+
 @Slf4j
 @PluginDescriptor(
 		name = "State Data"
@@ -42,32 +49,26 @@ public class StateDataPlugin extends Plugin
 {
 	@Inject
 	private Client client;
-
 	@Inject
 	private ClientToolbar clientToolbar;
-
 	@Inject
 	private StateDataConfig config;
-
 	private StateDataPanel panel;
-
 	private NavigationButton navButton;
 	private WorldPoint lastTickLocation;
 	private ItemContainer previousInventory;
 	@Inject
 	private ClientThread clientThread;
-
 	private PythonConnection ws;
-
 	private Properties props;
 	private GameEnvironment ga;
 	private static final int DESIRED_PITCH = 512;
 	private static final int DESIRED_YAW = 0;
-
-
+	private int currentPlane;
 	@Getter
 	private final Set<GameObject> treeObjects = new HashSet<>();
-
+	@Getter(AccessLevel.PACKAGE)
+	private final List<TreeRespawn> respawns = new ArrayList<>();
 	@Provides
 	StateDataConfig provideConfig(ConfigManager configManager)
 	{
@@ -129,6 +130,7 @@ public class StateDataPlugin extends Plugin
 		clientToolbar.removeNavigation(navButton);
 		ws.close();
 		previousInventory = null;
+		treeObjects.clear();
 	}
 
 	@Subscribe
@@ -146,7 +148,7 @@ public class StateDataPlugin extends Plugin
 		}
 		else {
 
-			//System.out.println(client.getCanvasWidth() + ", " + client.getCanvasHeight());
+			currentPlane = client.getPlane();
 			JSONObject obj = new JSONObject();
 			JSONObject status = new JSONObject();
 			obj.put("type", 0);
@@ -165,7 +167,8 @@ public class StateDataPlugin extends Plugin
 			//ws.send(status.toString());
 			//printCameraOrientation();
 			//getInventoryItemPosition();
-			getTileLocation();
+			//getTileLocation();
+			getAllAvailableTiles();
 		}
 	}
 
@@ -175,6 +178,31 @@ public class StateDataPlugin extends Plugin
 		if (gameStateChanged.getGameState() == GameState.LOGGED_IN)
 		{
 			client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", "Example says " + config.gameStateData(), null);
+		}
+	}
+	@Subscribe
+	public void onGameObjectDespawned(final GameObjectDespawned event)
+	{
+		final GameObject object = event.getGameObject();
+
+		Tree tree = Tree.findTree(object.getId());
+		if (tree != null)
+		{
+			if (tree.getRespawnTime() != null && currentPlane == object.getPlane())
+			{
+				log.debug("Adding respawn timer for {} tree at {}", tree, object.getLocalLocation());
+
+				Point min = object.getSceneMinLocation();
+				WorldPoint base = WorldPoint.fromScene(client, min.getX(), min.getY(), client.getPlane());
+				TreeRespawn treeRespawn = new TreeRespawn(tree, object.sizeX() - 1, object.sizeY() - 1,
+						base, Instant.now(), (int) tree.getRespawnTime(base.getRegionID()).toMillis());
+				respawns.add(treeRespawn);
+			}
+
+			if (tree == Tree.REDWOOD)
+			{
+				treeObjects.remove(event.getGameObject());
+			}
 		}
 	}
 
@@ -242,6 +270,35 @@ public class StateDataPlugin extends Plugin
 		assert parentWidget.isIf3();
 		Widget wi = parentWidget.getChild(idx);
 		return new WidgetItem(wi.getItemId(), wi.getItemQuantity(), wi.getBounds(), parentWidget, wi.getBounds());
+	}
+
+	public void getAllAvailableTiles()
+	{
+		// Get the current player's tile
+		WorldPoint playerTile = client.getLocalPlayer().getWorldLocation();
+
+		// Set the x and y boundaries for the tiles
+		int xStart = playerTile.getX() - 2;
+		int xEnd = playerTile.getX() + 2;
+		int yStart = playerTile.getY() - 2;
+		int yEnd = playerTile.getY() + 2;
+
+		// Calculate the tiles within the boundaries
+		WorldPoint[][] tiles = new WorldPoint[xEnd - xStart + 1][yEnd - yStart + 1];
+		for (int x = xStart; x <= xEnd; x++) {
+			for (int y = yStart; y <= yEnd; y++) {
+				int i = x - xStart;
+				int j = y - yStart;
+				tiles[i][j] = new WorldPoint(x, y, client.getPlane());
+			}
+		}
+		// Iterate through the tiles array
+		for (int i = 0; i < tiles.length; i++) {
+			for (int j = 0; j < tiles[0].length; j++) {
+				WorldPoint tile = tiles[i][j];
+				System.out.print(tile.getX() + ", " + tile.getY() + " - ");
+			}
+		}
 	}
 
 }

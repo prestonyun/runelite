@@ -1,9 +1,11 @@
 package net.runelite.client.plugins.myplugin;
 
 import org.java_websocket.client.WebSocketClient;
+import com.google.gson.Gson;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import org.java_websocket.WebSocket;
 import org.java_websocket.drafts.Draft;
-import org.java_websocket.drafts.Draft_6455;
 import org.java_websocket.handshake.ServerHandshake;
 import org.json.JSONObject;
 
@@ -21,9 +23,8 @@ public class PythonConnection extends WebSocketClient {
         System.out.println("opened connection");
     }
     @Override
-    public void onMessage(String s) {
-        JSONObject obj = new JSONObject(s);
-        //System.out.println(obj.toString());
+    public void onMessage(String text) {
+        JsonObject obj = (JsonObject)(new Gson()).fromJson(text, JsonObject.class);
         if (obj.has("type")) {
             JSONObject data, payloadObject;
             String event = obj.get("type").toString();
@@ -55,14 +56,5 @@ public class PythonConnection extends WebSocketClient {
     private void sendMessage(JSONObject message) {
         this.socket.send(message.toString());
     }
-
-
-
-
-
-
-
-
-
 
 }
