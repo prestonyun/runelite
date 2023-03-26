@@ -25,13 +25,12 @@ import javax.net.ssl.X509TrustManager;
 
 import net.runelite.api.Point;
 import net.runelite.api.coords.Angle;
+import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetInfo;
 import net.runelite.api.widgets.WidgetItem;
 import net.runelite.client.callback.ClientThread;
-import net.runelite.client.plugins.camera.CameraConfig;
-import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.drafts.Draft_6455;
 import org.json.JSONObject;
 
@@ -170,12 +169,11 @@ public class StateDataPlugin extends Plugin
 		}
 		else {
 
-
+			//System.out.println(client.getCanvasWidth() + ", " + client.getCanvasHeight());
 			JSONObject obj = new JSONObject();
 			JSONObject status = new JSONObject();
 			obj.put("type", 0);
-			status.put("type", 1);
-			status = setCameraOrientation(status);
+			setCameraOrientation();
 
 			lastTickLocation = client.getLocalPlayer().getWorldLocation();
 
@@ -187,10 +185,10 @@ public class StateDataPlugin extends Plugin
 			obj.put("inventory", getInventoryAsString());
 
 			ws.send(obj.toString());
-			ws.send(status.toString());
-			printCameraOrientation();
-			getInventoryItemPosition();
-
+			//ws.send(status.toString());
+			//printCameraOrientation();
+			//getInventoryItemPosition();
+			getTileLocation();
 		}
 	}
 
@@ -235,15 +233,11 @@ public class StateDataPlugin extends Plugin
 		System.out.println("Camera Yaw: " + yaw);
 	}
 
-	public JSONObject setCameraOrientation(JSONObject state)
+	public void setCameraOrientation()
 	{
 		if (client.getCameraPitch() != DESIRED_PITCH || client.getCameraYaw() != DESIRED_YAW) {
-			state.put("zoom", 0);
 			clientThread.invokeLater(() -> client.runScript(ScriptID.CAMERA_DO_ZOOM, 433, 433));
 		}
-		else
-			state.put("zoom", 1);
-		return state;
 	}
 
 	public void getInventoryItemPosition()
@@ -252,11 +246,25 @@ public class StateDataPlugin extends Plugin
 
 		for (int i = 0; i < 28; i ++)
 		{
-			WidgetItem w = getWidgetItem(inventoryWidget, i);
-			Rectangle widgetBounds = w.getCanvasBounds();
-			System.out.println(w.getWidget().getName() + ": " + widgetBounds.x + "," + (widgetBounds.x + widgetBounds.width) + " " +  widgetBounds.y + ", " + (widgetBounds.y + widgetBounds.height));
+			final WidgetItem targetWidgetItem = getWidgetItem(inventoryWidget, i);
+			final Rectangle bounds = targetWidgetItem.getCanvasBounds(false);
+			final Point pt = targetWidgetItem.getCanvasLocation();
+
+			System.out.println(client.getMouseCanvasPosition().getX() + ", " + client.getMouseCanvasPosition().getY() + ": " + (pt.getX() + bounds.width) + ", " + (pt.getY() + bounds.height));
+			//System.out.println(targetWidgetItem.getWidget().getName() + ": " + bounds.x + "," + (bounds.x + bounds.width) + " " +  bounds.y + ", " + (bounds.y + bounds.height));
 
 		};
+	}
+
+	public void getTileLocation()
+	{
+		if (client.getSelectedSceneTile() != null)
+		{
+			Tile selectedTile = client.getSelectedSceneTile();
+			LocalPoint lp = LocalPoint.fromScene(selectedTile.getSceneLocation().getX(), selectedTile.getSceneLocation().getY());
+			Point p = Perspective.localToCanvas(client, lp, client.getPlane());
+			System.out.println(p.getX() + " ," + p.getY());
+		}
 	}
 
 	private static WidgetItem getWidgetItem(Widget parentWidget, int idx)

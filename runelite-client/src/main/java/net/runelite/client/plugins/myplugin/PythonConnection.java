@@ -53,7 +53,7 @@ public class PythonConnection extends WebSocketClient {
     @Override
     public void onMessage(String s) {
         JSONObject obj = new JSONObject(s);
-        System.out.println(obj.toString());
+        //System.out.println(obj.toString());
         if (obj.has("type")) {
             JSONObject data, payloadObject;
             String event = obj.get("type").toString();
