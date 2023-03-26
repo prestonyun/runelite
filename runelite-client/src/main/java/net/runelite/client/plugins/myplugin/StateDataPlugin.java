@@ -1,8 +1,5 @@
 package net.runelite.client.plugins.myplugin;
-
-import com.google.common.primitives.Ints;
 import com.google.inject.Provides;
-
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.FileInputStream;
@@ -10,21 +7,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.security.cert.CertificateException;
-import java.security.cert.X509Certificate;
 import java.util.*;
-import java.util.Deque;
-import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.inject.Inject;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLSocketFactory;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
-
 import net.runelite.api.Point;
-import net.runelite.api.coords.Angle;
 import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.widgets.Widget;
@@ -33,7 +20,6 @@ import net.runelite.api.widgets.WidgetItem;
 import net.runelite.client.callback.ClientThread;
 import org.java_websocket.drafts.Draft_6455;
 import org.json.JSONObject;
-
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.*;
@@ -47,7 +33,6 @@ import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.util.ImageUtil;
-import net.runelite.client.game.walking.Reachable;
 
 @Slf4j
 @PluginDescriptor(
@@ -119,15 +104,7 @@ public class StateDataPlugin extends Plugin
 			e.printStackTrace();
 		}
 
-		//String serverUri = props.getProperty("serverUri");
-
-		//ws = new PythonConnection(new URI(serverUri));
-		//ws.setSocket(factory.createSocket());
-		//ws.connect();
-
-
 		ws = new PythonConnection(new URI("ws://localhost:8765"), new Draft_6455());
-		//ws = new PythonConnection(new URI("wss://prestonyun-automatic-potato-ppx5v7x74ghr757-8765.preview.app.github.dev/"));
 		ws.connect();
 
 		final BufferedImage icon = ImageUtil.loadImageResource(getClass(), "combaticon.png");
@@ -240,22 +217,6 @@ public class StateDataPlugin extends Plugin
 		}
 	}
 
-	public void getInventoryItemPosition()
-	{
-		Widget inventoryWidget = client.getWidget(WidgetInfo.INVENTORY);
-
-		for (int i = 0; i < 28; i ++)
-		{
-			final WidgetItem targetWidgetItem = getWidgetItem(inventoryWidget, i);
-			final Rectangle bounds = targetWidgetItem.getCanvasBounds(false);
-			final Point pt = targetWidgetItem.getCanvasLocation();
-
-			System.out.println(client.getMouseCanvasPosition().getX() + ", " + client.getMouseCanvasPosition().getY() + ": " + (pt.getX() + bounds.width) + ", " + (pt.getY() + bounds.height));
-			//System.out.println(targetWidgetItem.getWidget().getName() + ": " + bounds.x + "," + (bounds.x + bounds.width) + " " +  bounds.y + ", " + (bounds.y + bounds.height));
-
-		};
-	}
-
 	public void getTileLocation()
 	{
 		if (client.getSelectedSceneTile() != null)
@@ -263,7 +224,16 @@ public class StateDataPlugin extends Plugin
 			Tile selectedTile = client.getSelectedSceneTile();
 			LocalPoint lp = LocalPoint.fromScene(selectedTile.getSceneLocation().getX(), selectedTile.getSceneLocation().getY());
 			Point p = Perspective.localToCanvas(client, lp, client.getPlane());
-			System.out.println(p.getX() + " ," + p.getY());
+			Polygon poly = Perspective.getCanvasTilePoly(client, lp);
+			Rectangle bounds = poly.getBounds();
+			System.out.println(bounds.getCenterX() + ", " + bounds.getCenterY());
+
+			ItemLayer il = selectedTile.getItemLayer();
+			if (il != null)
+			{
+				System.out.println(il.getCanvasLocation().getX() + ", " + il.getCanvasLocation().getY());
+			}
+			//System.out.println(p.getX() + " ," + p.getY());
 		}
 	}
 
