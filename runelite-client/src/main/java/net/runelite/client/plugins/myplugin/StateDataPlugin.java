@@ -105,7 +105,7 @@ public class StateDataPlugin extends Plugin
 			e.printStackTrace();
 		}
 
-		ws = new PythonConnection(new URI("ws://localhost:8765"), new Draft_6455());
+		ws = new PythonConnection(new URI("ws://localhost:8765"), new Draft_6455(), this);
 		ws.connect();
 
 		final BufferedImage icon = ImageUtil.loadImageResource(getClass(), "combaticon.png");
@@ -150,7 +150,6 @@ public class StateDataPlugin extends Plugin
 
 			currentPlane = client.getPlane();
 			JSONObject obj = new JSONObject();
-			JSONObject status = new JSONObject();
 			obj.put("type", 0);
 			setCameraOrientation();
 
@@ -168,7 +167,7 @@ public class StateDataPlugin extends Plugin
 			//printCameraOrientation();
 			//getInventoryItemPosition();
 			//getTileLocation();
-			getAllAvailableTiles();
+			get1TickTiles();
 		}
 	}
 
@@ -272,7 +271,7 @@ public class StateDataPlugin extends Plugin
 		return new WidgetItem(wi.getItemId(), wi.getItemQuantity(), wi.getBounds(), parentWidget, wi.getBounds());
 	}
 
-	public void getAllAvailableTiles()
+	public WorldPoint[] get1TickTiles()
 	{
 		// Get the current player's tile
 		WorldPoint playerTile = client.getLocalPlayer().getWorldLocation();
@@ -284,21 +283,37 @@ public class StateDataPlugin extends Plugin
 		int yEnd = playerTile.getY() + 2;
 
 		// Calculate the tiles within the boundaries
-		WorldPoint[][] tiles = new WorldPoint[xEnd - xStart + 1][yEnd - yStart + 1];
+		WorldPoint[] tiles = new WorldPoint[26];
+		int counter = 0;
 		for (int x = xStart; x <= xEnd; x++) {
 			for (int y = yStart; y <= yEnd; y++) {
-				int i = x - xStart;
-				int j = y - yStart;
-				tiles[i][j] = new WorldPoint(x, y, client.getPlane());
+				tiles[counter] = new WorldPoint(x, y, client.getPlane());
+				counter++;
+				if (counter >= 26)
+				{
+					break;
+				}
+			}
+			if (counter >= 26)
+			{
+				break;
 			}
 		}
-		// Iterate through the tiles array
-		for (int i = 0; i < tiles.length; i++) {
-			for (int j = 0; j < tiles[0].length; j++) {
-				WorldPoint tile = tiles[i][j];
-				System.out.print(tile.getX() + ", " + tile.getY() + " - ");
-			}
-		}
+
+		return tiles;
+	}
+
+	public void send1TickTiles(PythonConnection ws)
+	{
+		JSONObject payload = new JSONObject();
+		payload.put("type", "oneTickTiles");
+		WorldPoint[] tiles = get1TickTiles();
+		String tilesString = Arrays.stream(tiles)
+				.map(id -> String.format("%2s", id))
+				.collect(Collectors.joining(", ", "[", "]"));
+
+		payload.put("oneTickTiles", tilesString);
+		ws.send(payload.toString());
 	}
 
 }

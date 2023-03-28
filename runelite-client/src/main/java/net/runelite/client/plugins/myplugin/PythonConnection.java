@@ -13,9 +13,12 @@ import java.net.URI;
 import java.net.URISyntaxException;
 
 public class PythonConnection extends WebSocketClient {
-    public PythonConnection(URI serverUri, Draft draft) {
+    private final StateDataPlugin plugin;
+
+    public PythonConnection(URI serverUri, Draft draft, StateDataPlugin plugin) {
         super(serverUri, draft);
         this.socket = this.getConnection();
+        this.plugin = plugin;
     }
     @Override
     public void onOpen(ServerHandshake serverHandshake) {
@@ -33,6 +36,9 @@ public class PythonConnection extends WebSocketClient {
                     payloadObject = new JSONObject();
                     payloadObject.put("greeting", "Hello back!");
                     sendMessage(payloadObject);
+                    break;
+                case "oneTickTiles":
+                    plugin.send1TickTiles(this);
             }
         }
     }
