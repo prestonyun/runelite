@@ -25,6 +25,7 @@ import net.runelite.api.widgets.WidgetInfo;
 import net.runelite.api.widgets.WidgetItem;
 import net.runelite.client.callback.ClientThread;
 import org.java_websocket.drafts.Draft_6455;
+import org.java_websocket.exceptions.WebsocketNotConnectedException;
 import org.json.JSONObject;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -162,12 +163,24 @@ public class StateDataPlugin extends Plugin
 			obj.put("valid_movements", ga.getValidMovementLocationsAsString(client, lastTickLocation, 10));
 			obj.put("inventory", getInventoryAsString());
 
-			ws.send(obj.toString());
+			//ws.send(obj.toString());
+			if (ws.isConnected()) {
+				try {
+					ws.send(obj.toString());
+				} catch (WebsocketNotConnectedException e) {
+					System.err.println("WebSocket not connected: " + e.getMessage());
+				}
+			}
+			else try {
+				ws.connect();
+			} catch (Exception e) {
+				System.out.println("Cannot connect to websocket: " + e.getMessage());
+			}
 			//ws.send(status.toString());
 			//printCameraOrientation();
 			//getInventoryItemPosition();
 			//getTileLocation();
-			get1TickTiles();
+			//get1TickTiles();
 		}
 	}
 
