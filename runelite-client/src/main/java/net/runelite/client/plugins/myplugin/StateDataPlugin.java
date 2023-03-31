@@ -1,6 +1,7 @@
 package net.runelite.client.plugins.myplugin;
 
 import com.google.inject.Provides;
+
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.FileInputStream;
@@ -44,289 +45,266 @@ import net.runelite.client.util.ImageUtil;
 
 @Slf4j
 @PluginDescriptor(
-		name = "State Data"
+        name = "State Data"
 )
-public class StateDataPlugin extends Plugin
-{
-	@Inject
-	private Client client;
-	@Inject
-	private ClientToolbar clientToolbar;
-	@Inject
-	private StateDataConfig config;
-	private StateDataPanel panel;
-	private NavigationButton navButton;
-	private WorldPoint lastTickLocation;
-	private ItemContainer previousInventory;
-	@Inject
-	private ClientThread clientThread;
-	private PythonConnection ws;
-	private Properties props;
-	private GameEnvironment ga;
-	private static final int DESIRED_PITCH = 512;
-	private static final int DESIRED_YAW = 0;
-	private int currentPlane;
-	@Getter
-	private final Set<GameObject> treeObjects = new HashSet<>();
-	@Getter(AccessLevel.PACKAGE)
-	private final List<TreeRespawn> respawns = new ArrayList<>();
-	@Provides
-	StateDataConfig provideConfig(ConfigManager configManager)
-	{
-		return configManager.getConfig(StateDataConfig.class);
-	}
+public class StateDataPlugin extends Plugin {
+    @Inject
+    private Client client;
+    @Inject
+    private ClientToolbar clientToolbar;
+    @Inject
+    private StateDataConfig config;
+    private StateDataPanel panel;
+    private NavigationButton navButton;
+    private WorldPoint lastTickLocation;
+    private ItemContainer previousInventory;
+    @Inject
+    private ClientThread clientThread;
+    private PythonConnection ws;
+    private Properties props;
+    private GameEnvironment ga;
+    private static final int DESIRED_PITCH = 512;
+    private static final int DESIRED_YAW = 0;
+    private int currentPlane;
+    @Getter
+    private final Set<GameObject> treeObjects = new HashSet<>();
+    @Getter(AccessLevel.PACKAGE)
+    private final List<TreeRespawn> respawns = new ArrayList<>();
 
-	@Override
-	protected void startUp() throws Exception
-	{
-		if (this.clientThread != null) {
-			clientThread.invoke(() ->
-			{
-				Widget settingsInit = client.getWidget(WidgetInfo.SETTINGS_INIT);
-				if (settingsInit != null)
-				{
-					client.createScriptEvent(settingsInit.getOnLoadListener())
-							.setSource(settingsInit)
-							.run();
-					clientThread.invokeLater(() -> client.runScript(ScriptID.CAMERA_DO_ZOOM, 433, 433));
-				}
-			});
-		}
+    @Provides
+    StateDataConfig provideConfig(ConfigManager configManager) {
+        return configManager.getConfig(StateDataConfig.class);
+    }
 
-		panel = injector.getInstance(StateDataPanel.class);
-		panel.init(config);
-		log.info("Example started!");
-		ga = new GameEnvironment(client);
+    @Override
+    protected void startUp() throws Exception {
+        if (this.clientThread != null) {
+            clientThread.invoke(() ->
+            {
+                Widget settingsInit = client.getWidget(WidgetInfo.SETTINGS_INIT);
+                if (settingsInit != null) {
+                    client.createScriptEvent(settingsInit.getOnLoadListener())
+                            .setSource(settingsInit)
+                            .run();
+                    clientThread.invokeLater(() -> client.runScript(ScriptID.CAMERA_DO_ZOOM, 433, 433));
+                }
+            });
+        }
 
-		props = new Properties();
-		try (InputStream input = new FileInputStream("config.properties"))
-		{
-			props.load(input);
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
+        panel = injector.getInstance(StateDataPanel.class);
+        panel.init(config);
+        log.info("Example started!");
+        ga = new GameEnvironment(client);
 
-		ws = new PythonConnection(new URI("ws://localhost:8765"), new Draft_6455(), this);
-		ws.connect();
+        props = new Properties();
+        try (InputStream input = new FileInputStream("config.properties")) {
+            props.load(input);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
 
-		final BufferedImage icon = ImageUtil.loadImageResource(getClass(), "combaticon.png");
+        ws = new PythonConnection(new URI("ws://localhost:8765"), new Draft_6455(), this);
+        ws.connect();
 
-		navButton = NavigationButton.builder()
-				.tooltip("State Data")
-				.icon(icon)
-				.priority(7)
-				.panel(panel)
-				.build();
+        final BufferedImage icon = ImageUtil.loadImageResource(getClass(), "combaticon.png");
 
-		clientToolbar.addNavigation(navButton);
-		previousInventory = client.getItemContainer(InventoryID.INVENTORY);
-	}
+        navButton = NavigationButton.builder()
+                .tooltip("State Data")
+                .icon(icon)
+                .priority(7)
+                .panel(panel)
+                .build();
 
-	@Override
-	protected void shutDown() throws Exception
-	{
-		log.info("Example stopped!");
-		treeObjects.clear();
-		panel = null;
-		clientToolbar.removeNavigation(navButton);
-		ws.close();
-		previousInventory = null;
-		treeObjects.clear();
-	}
+        clientToolbar.addNavigation(navButton);
+        previousInventory = client.getItemContainer(InventoryID.INVENTORY);
+    }
 
-	@Subscribe
-	public void onItemContainerChanged(ItemContainerChanged event) {
-		if (event.getItemContainer() == client.getItemContainer(InventoryID.INVENTORY)) {
-			previousInventory = null;
-		}
-	}
+    @Override
+    protected void shutDown() throws Exception {
+        log.info("Example stopped!");
+        treeObjects.clear();
+        panel = null;
+        clientToolbar.removeNavigation(navButton);
+        ws.close();
+        previousInventory = null;
+        treeObjects.clear();
+    }
 
-	@Subscribe
-	public void onGameTick(GameTick t) throws IOException, URISyntaxException {
-		if (client.getGameState() != GameState.LOGGED_IN)
-		{
-			lastTickLocation = null;
-		}
-		else {
+    @Subscribe
+    public void onItemContainerChanged(ItemContainerChanged event) {
+        if (event.getItemContainer() == client.getItemContainer(InventoryID.INVENTORY)) {
+            previousInventory = null;
+        }
+    }
 
-			currentPlane = client.getPlane();
-			JSONObject obj = new JSONObject();
-			obj.put("type", 0);
-			setCameraOrientation();
+    @Subscribe
+    public void onGameTick(GameTick t) throws IOException, URISyntaxException {
+        if (client.getGameState() != GameState.LOGGED_IN) {
+            lastTickLocation = null;
+        } else {
 
-			lastTickLocation = client.getLocalPlayer().getWorldLocation();
+            currentPlane = client.getPlane();
+            JSONObject obj = new JSONObject();
+            obj.put("type", 0);
+            setCameraOrientation();
 
-			obj.put("location", "[" + lastTickLocation.getX() + ", " + lastTickLocation.getY() + "]");
-			obj.put("hitpoints", client.getRealSkillLevel(Skill.HITPOINTS));
-			obj.put("prayerpoints", client.getRealSkillLevel(Skill.PRAYER));
-			obj.put("energy", client.getEnergy());
-			obj.put("valid_movements", ga.getValidMovementLocationsAsString(client, lastTickLocation, 10));
-			obj.put("inventory", getInventoryAsString());
+            lastTickLocation = client.getLocalPlayer().getWorldLocation();
 
-			//ws.send(obj.toString());
-			if (ws.isConnected()) {
-				try {
-					ws.send(obj.toString());
-				} catch (WebsocketNotConnectedException e) {
-					System.err.println("WebSocket not connected: " + e.getMessage());
-				}
-			}
-			else try {
-				ws.connect();
-			} catch (Exception e) {
-				System.out.println("Cannot connect to websocket: " + e.getMessage());
-			}
-			//ws.send(status.toString());
-			//printCameraOrientation();
-			//getInventoryItemPosition();
-			//getTileLocation();
-			//get1TickTiles();
-		}
-	}
+            obj.put("location", "[" + lastTickLocation.getX() + ", " + lastTickLocation.getY() + "]");
+            obj.put("hitpoints", client.getRealSkillLevel(Skill.HITPOINTS));
+            obj.put("prayerpoints", client.getRealSkillLevel(Skill.PRAYER));
+            obj.put("energy", client.getEnergy());
+            obj.put("valid_movements", ga.getValidMovementLocationsAsString(client, lastTickLocation, 10));
+            obj.put("inventory", getInventoryAsString());
 
-	@Subscribe
-	public void onGameStateChanged(GameStateChanged gameStateChanged)
-	{
-		if (gameStateChanged.getGameState() == GameState.LOGGED_IN)
-		{
-			client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", "Example says " + config.gameStateData(), null);
-		}
-	}
-	@Subscribe
-	public void onGameObjectDespawned(final GameObjectDespawned event)
-	{
-		final GameObject object = event.getGameObject();
+            //ws.send(obj.toString());
+            if (ws.isConnected()) {
+                try {
+                    ws.send(obj.toString());
+                } catch (WebsocketNotConnectedException e) {
+                    System.err.println("WebSocket not connected: " + e.getMessage());
+                }
+            } else try {
+                ws.connect();
+            } catch (Exception e) {
+                System.out.println("Cannot connect to websocket: " + e.getMessage());
+            }
+            //ws.send(status.toString());
+            //printCameraOrientation();
+            //getInventoryItemPosition();
+            //getTileLocation();
+            //get1TickTiles();
+        }
+    }
 
-		Tree tree = Tree.findTree(object.getId());
-		if (tree != null)
-		{
-			if (tree.getRespawnTime() != null && currentPlane == object.getPlane())
-			{
-				log.debug("Adding respawn timer for {} tree at {}", tree, object.getLocalLocation());
+    @Subscribe
+    public void onGameStateChanged(GameStateChanged gameStateChanged) {
+        if (gameStateChanged.getGameState() == GameState.LOGGED_IN) {
+            client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", "Example says " + config.gameStateData(), null);
+        }
+    }
 
-				Point min = object.getSceneMinLocation();
-				WorldPoint base = WorldPoint.fromScene(client, min.getX(), min.getY(), client.getPlane());
-				TreeRespawn treeRespawn = new TreeRespawn(tree, object.sizeX() - 1, object.sizeY() - 1,
-						base, Instant.now(), (int) tree.getRespawnTime(base.getRegionID()).toMillis());
-				respawns.add(treeRespawn);
-			}
+    @Subscribe
+    public void onGameObjectDespawned(final GameObjectDespawned event) {
+        final GameObject object = event.getGameObject();
 
-			if (tree == Tree.REDWOOD)
-			{
-				treeObjects.remove(event.getGameObject());
-			}
-		}
-	}
+        Tree tree = Tree.findTree(object.getId());
+        if (tree != null) {
+            if (tree.getRespawnTime() != null && currentPlane == object.getPlane()) {
+                log.debug("Adding respawn timer for {} tree at {}", tree, object.getLocalLocation());
 
-	public String getInventoryAsString() {
-		ItemContainer inventory = client.getItemContainer(net.runelite.api.InventoryID.INVENTORY);
-		if (inventory != null) {
-			Item[] items = inventory.getItems();
-			String[] fixedSizeItems = new String[28];
-			Arrays.fill(fixedSizeItems, "-1");
-			for (int i = 0; i < items.length && i < fixedSizeItems.length; i++) {
-				if (items[i] != null) {
-					fixedSizeItems[i] = String.valueOf(items[i].getId());
-				}
-			}
-			String inventoryString = Arrays.stream(fixedSizeItems)
-					.map(id -> String.format("%2s", id))
-					.collect(Collectors.joining(", ", "[", "]"));
-			return inventoryString;
-		} else {
-			String inventoryString = IntStream.range(0, 28)
-					.mapToObj(i -> String.valueOf(-1))
-					.collect(Collectors.joining(", ", "[", "]"));
-			return inventoryString;
-		}
-	}
+                Point min = object.getSceneMinLocation();
+                WorldPoint base = WorldPoint.fromScene(client, min.getX(), min.getY(), client.getPlane());
+                TreeRespawn treeRespawn = new TreeRespawn(tree, object.sizeX() - 1, object.sizeY() - 1,
+                        base, Instant.now(), (int) tree.getRespawnTime(base.getRegionID()).toMillis());
+                respawns.add(treeRespawn);
+            }
 
-	public void printCameraOrientation()
-	{
-		int pitch = client.getCameraPitch();
-		int yaw = client.getCameraYaw();
+            if (tree == Tree.REDWOOD) {
+                treeObjects.remove(event.getGameObject());
+            }
+        }
+    }
 
-		System.out.println("Camera Pitch: " + pitch);
-		System.out.println("Camera Yaw: " + yaw);
-	}
+    public String getInventoryAsString() {
+        ItemContainer inventory = client.getItemContainer(net.runelite.api.InventoryID.INVENTORY);
+        if (inventory != null) {
+            Item[] items = inventory.getItems();
+            String[] fixedSizeItems = new String[28];
+            Arrays.fill(fixedSizeItems, "-1");
+            for (int i = 0; i < items.length && i < fixedSizeItems.length; i++) {
+                if (items[i] != null) {
+                    fixedSizeItems[i] = String.valueOf(items[i].getId());
+                }
+            }
+            String inventoryString = Arrays.stream(fixedSizeItems)
+                    .map(id -> String.format("%2s", id))
+                    .collect(Collectors.joining(", ", "[", "]"));
+            return inventoryString;
+        } else {
+            String inventoryString = IntStream.range(0, 28)
+                    .mapToObj(i -> String.valueOf(-1))
+                    .collect(Collectors.joining(", ", "[", "]"));
+            return inventoryString;
+        }
+    }
 
-	public void setCameraOrientation()
-	{
-		if (client.getCameraPitch() != DESIRED_PITCH || client.getCameraYaw() != DESIRED_YAW) {
-			clientThread.invokeLater(() -> client.runScript(ScriptID.CAMERA_DO_ZOOM, 433, 433));
-		}
-	}
+    public void printCameraOrientation() {
+        int pitch = client.getCameraPitch();
+        int yaw = client.getCameraYaw();
 
-	public void getTileLocation()
-	{
-		if (client.getSelectedSceneTile() != null)
-		{
-			Tile selectedTile = client.getSelectedSceneTile();
-			LocalPoint lp = LocalPoint.fromScene(selectedTile.getSceneLocation().getX(), selectedTile.getSceneLocation().getY());
-			Point p = Perspective.localToCanvas(client, lp, client.getPlane());
-			Polygon poly = Perspective.getCanvasTilePoly(client, lp);
-			Rectangle bounds = poly.getBounds();
-			System.out.println(bounds.getCenterX() + ", " + bounds.getCenterY());
+        System.out.println("Camera Pitch: " + pitch);
+        System.out.println("Camera Yaw: " + yaw);
+    }
 
-			ItemLayer il = selectedTile.getItemLayer();
-			if (il != null)
-			{
-				System.out.println(il.getCanvasLocation().getX() + ", " + il.getCanvasLocation().getY());
-			}
-			//System.out.println(p.getX() + " ," + p.getY());
-		}
-	}
+    public void setCameraOrientation() {
+        if (client.getCameraPitch() != DESIRED_PITCH || client.getCameraYaw() != DESIRED_YAW) {
+            clientThread.invokeLater(() -> client.runScript(ScriptID.CAMERA_DO_ZOOM, 433, 433));
+        }
+    }
 
-	private static WidgetItem getWidgetItem(Widget parentWidget, int idx)
-	{
-		assert parentWidget.isIf3();
-		Widget wi = parentWidget.getChild(idx);
-		return new WidgetItem(wi.getItemId(), wi.getItemQuantity(), wi.getBounds(), parentWidget, wi.getBounds());
-	}
+    public void getTileLocation() {
+        if (client.getSelectedSceneTile() != null) {
+            Tile selectedTile = client.getSelectedSceneTile();
+            LocalPoint lp = LocalPoint.fromScene(selectedTile.getSceneLocation().getX(), selectedTile.getSceneLocation().getY());
+            Point p = Perspective.localToCanvas(client, lp, client.getPlane());
+            Polygon poly = Perspective.getCanvasTilePoly(client, lp);
+            Rectangle bounds = poly.getBounds();
+            System.out.println(bounds.getCenterX() + ", " + bounds.getCenterY());
 
-	public WorldPoint[] get1TickTiles()
-	{
-		// Get the current player's tile
-		WorldPoint playerTile = client.getLocalPlayer().getWorldLocation();
+            ItemLayer il = selectedTile.getItemLayer();
+            if (il != null) {
+                System.out.println(il.getCanvasLocation().getX() + ", " + il.getCanvasLocation().getY());
+            }
+            //System.out.println(p.getX() + " ," + p.getY());
+        }
+    }
 
-		// Set the x and y boundaries for the tiles
-		int xStart = playerTile.getX() - 2;
-		int xEnd = playerTile.getX() + 2;
-		int yStart = playerTile.getY() - 2;
-		int yEnd = playerTile.getY() + 2;
+    private static WidgetItem getWidgetItem(Widget parentWidget, int idx) {
+        assert parentWidget.isIf3();
+        Widget wi = parentWidget.getChild(idx);
+        return new WidgetItem(wi.getItemId(), wi.getItemQuantity(), wi.getBounds(), parentWidget, wi.getBounds());
+    }
 
-		// Calculate the tiles within the boundaries
-		WorldPoint[] tiles = new WorldPoint[26];
-		int counter = 0;
-		for (int x = xStart; x <= xEnd; x++) {
-			for (int y = yStart; y <= yEnd; y++) {
-				tiles[counter] = new WorldPoint(x, y, client.getPlane());
-				counter++;
-				if (counter >= 26)
-				{
-					break;
-				}
-			}
-			if (counter >= 26)
-			{
-				break;
-			}
-		}
+    public WorldPoint[] get1TickTiles() {
+        // Get the current player's tile
+        WorldPoint playerTile = client.getLocalPlayer().getWorldLocation();
 
-		return tiles;
-	}
+        // Set the x and y boundaries for the tiles
+        int xStart = playerTile.getX() - 2;
+        int xEnd = playerTile.getX() + 2;
+        int yStart = playerTile.getY() - 2;
+        int yEnd = playerTile.getY() + 2;
 
-	public void send1TickTiles(PythonConnection ws)
-	{
-		JSONObject payload = new JSONObject();
-		payload.put("type", "oneTickTiles");
-		WorldPoint[] tiles = get1TickTiles();
-		String tilesString = Arrays.stream(tiles)
-				.map(id -> String.format("%2s", id))
-				.collect(Collectors.joining(", ", "[", "]"));
+        // Calculate the tiles within the boundaries
+        WorldPoint[] tiles = new WorldPoint[26];
+        int counter = 0;
+        for (int x = xStart; x <= xEnd; x++) {
+            for (int y = yStart; y <= yEnd; y++) {
+                tiles[counter] = new WorldPoint(x, y, client.getPlane());
+                counter++;
+                if (counter >= 26) {
+                    break;
+                }
+            }
+            if (counter >= 26) {
+                break;
+            }
+        }
 
-		payload.put("oneTickTiles", tilesString);
-		ws.send(payload.toString());
-	}
+        return tiles;
+    }
+
+    public void send1TickTiles(PythonConnection ws) {
+        JSONObject payload = new JSONObject();
+        payload.put("type", "oneTickTiles");
+        WorldPoint[] tiles = get1TickTiles();
+        String tilesString = Arrays.stream(tiles)
+                .map(id -> String.format("%2s", id))
+                .collect(Collectors.joining(", ", "[", "]"));
+
+        payload.put("oneTickTiles", tilesString);
+        ws.send(payload.toString());
+    }
 
 }

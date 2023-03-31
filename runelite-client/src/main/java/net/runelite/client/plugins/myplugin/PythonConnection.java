@@ -20,14 +20,16 @@ public class PythonConnection extends WebSocketClient {
         this.socket = this.getConnection();
         this.plugin = plugin;
     }
+
     @Override
     public void onOpen(ServerHandshake serverHandshake) {
         isConnected = true;
         System.out.println("opened connection");
     }
+
     @Override
     public void onMessage(String text) {
-        JsonObject obj = (JsonObject)(new Gson()).fromJson(text, JsonObject.class);
+        JsonObject obj = (JsonObject) (new Gson()).fromJson(text, JsonObject.class);
         if (obj.has("type")) {
             JSONObject data, payloadObject;
             String event = obj.get("type").toString();
@@ -42,15 +44,18 @@ public class PythonConnection extends WebSocketClient {
             }
         }
     }
+
     @Override
     public void onClose(int i, String s, boolean b) {
         isConnected = false;
         System.out.println("closed connection");
     }
+
     @Override
     public void onError(Exception e) {
         System.err.println("An error occurred: " + e.getMessage());
     }
+
     private WebSocket socket;
 
     private boolean isConnected;
