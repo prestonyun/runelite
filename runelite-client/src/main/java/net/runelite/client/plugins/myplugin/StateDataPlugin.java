@@ -19,8 +19,7 @@ import javax.inject.Inject;
 import lombok.AccessLevel;
 import net.runelite.api.Point;
 import net.runelite.api.coords.LocalPoint;
-import net.runelite.api.events.GameObjectDespawned;
-import net.runelite.api.events.ItemContainerChanged;
+import net.runelite.api.events.*;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetInfo;
 import net.runelite.api.widgets.WidgetItem;
@@ -32,8 +31,6 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.*;
 import net.runelite.api.coords.WorldPoint;
-import net.runelite.api.events.GameStateChanged;
-import net.runelite.api.events.GameTick;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.plugins.Plugin;
@@ -66,6 +63,7 @@ public class StateDataPlugin extends Plugin {
     private static final int DESIRED_PITCH = 512;
     private static final int DESIRED_YAW = 0;
     private int currentPlane;
+    private JSONObject obj;
     @Getter
     private final Set<GameObject> treeObjects = new HashSet<>();
     @Getter(AccessLevel.PACKAGE)
@@ -95,6 +93,7 @@ public class StateDataPlugin extends Plugin {
         panel.init(config);
         log.info("Example started!");
         ga = new GameEnvironment(client);
+        obj = new JSONObject();
 
         props = new Properties();
         try (InputStream input = new FileInputStream("config.properties")) {
@@ -144,7 +143,6 @@ public class StateDataPlugin extends Plugin {
         } else {
 
             currentPlane = client.getPlane();
-            JSONObject obj = new JSONObject();
             obj.put("type", 0);
             setCameraOrientation();
 
@@ -181,6 +179,27 @@ public class StateDataPlugin extends Plugin {
     public void onGameStateChanged(GameStateChanged gameStateChanged) {
         if (gameStateChanged.getGameState() == GameState.LOGGED_IN) {
             client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", "Example says " + config.gameStateData(), null);
+        }
+    }
+
+    @Subscribe
+    public void onAnimationChanged(AnimationChanged animationChanged) {
+        if (animationChanged.getActor() == client.getLocalPlayer()) {
+            int animationID = client.getLocalPlayer().getAnimation();
+        }
+    }
+
+    @Subscribe
+    public void onInteractingChanged(InteractingChanged interactingChanged) {
+        if (interactingChanged.getSource() == client.getLocalPlayer()) {
+            obj.put("type", "interaction");
+            if (interactingChanged.getTarget() != null) {
+                obj.put("interacting_with", interactingChanged.getTarget());
+                obj.put("is_interacting", true);
+            }
+            else
+                obj.put("is_interacting", false);
+            ws.send(obj.toString());
         }
     }
 
