@@ -93,7 +93,7 @@ public class StateDataPlugin extends Plugin {
         panel.init(config);
         log.info("Example started!");
         ga = new GameEnvironment(client);
-        obj = new JSONObject();
+
 
         props = new Properties();
         try (InputStream input = new FileInputStream("config.properties")) {
@@ -141,6 +141,7 @@ public class StateDataPlugin extends Plugin {
         if (client.getGameState() != GameState.LOGGED_IN) {
             lastTickLocation = null;
         } else {
+            obj = new JSONObject();
 
             currentPlane = client.getPlane();
             obj.put("type", 0);
@@ -148,21 +149,19 @@ public class StateDataPlugin extends Plugin {
 
             lastTickLocation = client.getLocalPlayer().getWorldLocation();
 
-            obj.put("location", "[" + lastTickLocation.getX() + ", " + lastTickLocation.getY() + "]");
-            obj.put("hitpoints", client.getRealSkillLevel(Skill.HITPOINTS));
-            obj.put("prayerpoints", client.getRealSkillLevel(Skill.PRAYER));
-            obj.put("energy", client.getEnergy());
-            obj.put("valid_movements", ga.getValidMovementLocationsAsString(client, lastTickLocation, 10));
-            obj.put("inventory", getInventoryAsString());
+            //obj.put("valid_movements", ga.getValidMovementLocationsAsString(client, lastTickLocation, 10));
+            //obj.put("inventory", getInventoryAsString());
 
             //ws.send(obj.toString());
             if (ws.isConnected()) {
                 try {
-                    ws.send(obj.toString());
+                    //ws.send(obj.toString());
+                    ws.sendPlayerData(client, ws, obj);
                 } catch (WebsocketNotConnectedException e) {
                     System.err.println("WebSocket not connected: " + e.getMessage());
                 }
             } else try {
+                ws = new PythonConnection(new URI("ws://localhost:8765"), new Draft_6455(), this);
                 ws.connect();
             } catch (Exception e) {
                 System.out.println("Cannot connect to websocket: " + e.getMessage());
@@ -185,13 +184,18 @@ public class StateDataPlugin extends Plugin {
     @Subscribe
     public void onAnimationChanged(AnimationChanged animationChanged) {
         if (animationChanged.getActor() == client.getLocalPlayer()) {
+            obj = new JSONObject();
             int animationID = client.getLocalPlayer().getAnimation();
+            obj.put("type", "animation");
+            obj.put("animationID", animationID);
+            ws.send(obj.toString());
         }
     }
 
     @Subscribe
     public void onInteractingChanged(InteractingChanged interactingChanged) {
         if (interactingChanged.getSource() == client.getLocalPlayer()) {
+            obj = new JSONObject();
             obj.put("type", "interaction");
             if (interactingChanged.getTarget() != null) {
                 obj.put("interacting_with", interactingChanged.getTarget());

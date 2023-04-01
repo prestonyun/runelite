@@ -1,5 +1,7 @@
 package net.runelite.client.plugins.myplugin;
 
+import net.runelite.api.Client;
+import net.runelite.api.Skill;
 import org.java_websocket.client.WebSocketClient;
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
@@ -66,6 +68,20 @@ public class PythonConnection extends WebSocketClient {
 
     private void sendMessage(JSONObject message) {
         this.socket.send(message.toString());
+    }
+
+    public void sendPlayerData(Client client, PythonConnection ws, JSONObject obj) {
+        if (obj == null) {
+            obj = new JSONObject();
+        }
+        obj.put("type", "player_data");
+        obj.put("hitpoints", client.getBoostedSkillLevel(Skill.HITPOINTS));
+        obj.put("prayerpoints", client.getBoostedSkillLevel(Skill.PRAYER));
+        obj.put("energy", client.getEnergy());
+        obj.put("is_interacting", client.getLocalPlayer().isInteracting());
+        obj.put("animation", client.getLocalPlayer().getAnimation());
+
+        ws.sendMessage(obj);
     }
 
 }
