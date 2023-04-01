@@ -68,13 +68,13 @@ enum Tree
     }
 
     private static final int MISCELLANIA_REGION = 10044;
-    private static final Map<Integer, net.runelite.client.plugins.myplugin.Tree> TREES;
+    private static final Map<Integer, Tree> TREES;
 
     static
     {
-        ImmutableMap.Builder<Integer, net.runelite.client.plugins.myplugin.Tree> builder = new ImmutableMap.Builder<>();
+        ImmutableMap.Builder<Integer, Tree> builder = new ImmutableMap.Builder<>();
 
-        for (net.runelite.client.plugins.myplugin.Tree tree : values())
+        for (Tree tree : values())
         {
             for (int treeId : tree.treeIds)
             {
@@ -90,7 +90,7 @@ enum Tree
         return respawnTime;
     }
 
-    static net.runelite.client.plugins.myplugin.Tree findTree(int objectId)
+    static Tree findTree(int objectId)
     {
         return TREES.get(objectId);
     }

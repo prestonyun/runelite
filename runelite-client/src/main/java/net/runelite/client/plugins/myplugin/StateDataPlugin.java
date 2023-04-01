@@ -142,6 +142,7 @@ public class StateDataPlugin extends Plugin {
             lastTickLocation = null;
         } else {
             obj = new JSONObject();
+            int tick = client.getTickCount();
 
             currentPlane = client.getPlane();
             obj.put("type", 0);
@@ -157,6 +158,12 @@ public class StateDataPlugin extends Plugin {
                 try {
                     //ws.send(obj.toString());
                     ws.sendPlayerData(client, ws, obj);
+                    ws.sendEnvironmentData(client, ws, obj);
+                    if (tick % 10 == 0) {
+                        System.out.println();
+                        // TODO:
+                        //ws.sendTreeTiles();
+                    }
                 } catch (WebsocketNotConnectedException e) {
                     System.err.println("WebSocket not connected: " + e.getMessage());
                 }
@@ -229,6 +236,30 @@ public class StateDataPlugin extends Plugin {
         }
     }
 
+    Map<WorldPoint, Tile> findTreeTiles()
+    {
+        Map<WorldPoint, Tile> regularTreeTiles = new HashMap<>();
+        Scene scene = client.getScene();
+        Tile[][][] tiles = scene.getTiles();
+        for (int x = 0; x < scene.getTiles()[client.getPlane()].length; x++) {
+            for (int y = 0; y < scene.getTiles()[client.getPlane()][x].length; y++) {
+                Tile tile = tiles[client.getPlane()][x][y];
+                if (tile != null)
+                {
+                    for (GameObject gameObject : tile.getGameObjects())
+                    {
+                        Tree tree = Tree.findTree(gameObject.getId());
+                        if (gameObject != null && tree == Tree.REGULAR_TREE)
+                        {
+                            regularTreeTiles.put(tile.getWorldLocation(), tile);
+                        }
+                    }
+                }
+            }
+        }
+
+        return regularTreeTiles;
+    }
     public String getInventoryAsString() {
         ItemContainer inventory = client.getItemContainer(net.runelite.api.InventoryID.INVENTORY);
         if (inventory != null) {
@@ -289,7 +320,7 @@ public class StateDataPlugin extends Plugin {
         return new WidgetItem(wi.getItemId(), wi.getItemQuantity(), wi.getBounds(), parentWidget, wi.getBounds());
     }
 
-    public WorldPoint[] get1TickTiles() {
+    public static WorldPoint[] get1TickTiles(Client client) {
         // Get the current player's tile
         WorldPoint playerTile = client.getLocalPlayer().getWorldLocation();
 
@@ -321,7 +352,7 @@ public class StateDataPlugin extends Plugin {
     public void send1TickTiles(PythonConnection ws) {
         JSONObject payload = new JSONObject();
         payload.put("type", "oneTickTiles");
-        WorldPoint[] tiles = get1TickTiles();
+        WorldPoint[] tiles = get1TickTiles(client);
         String tilesString = Arrays.stream(tiles)
                 .map(id -> String.format("%2s", id))
                 .collect(Collectors.joining(", ", "[", "]"));

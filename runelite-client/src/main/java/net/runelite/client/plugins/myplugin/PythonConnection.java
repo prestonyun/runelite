@@ -2,9 +2,9 @@ package net.runelite.client.plugins.myplugin;
 
 import net.runelite.api.Client;
 import net.runelite.api.Skill;
+import net.runelite.api.coords.WorldPoint;
 import org.java_websocket.client.WebSocketClient;
 import com.google.gson.Gson;
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import org.java_websocket.WebSocket;
 import org.java_websocket.drafts.Draft;
@@ -13,6 +13,8 @@ import org.json.JSONObject;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 
 public class PythonConnection extends WebSocketClient {
     private final StateDataPlugin plugin;
@@ -70,16 +72,32 @@ public class PythonConnection extends WebSocketClient {
         this.socket.send(message.toString());
     }
 
-    public void sendPlayerData(Client client, PythonConnection ws, JSONObject obj) {
+    public static void sendPlayerData(Client client, PythonConnection ws, JSONObject obj) {
         if (obj == null) {
             obj = new JSONObject();
         }
-        obj.put("type", "player_data");
+        obj.put("type", "player");
         obj.put("hitpoints", client.getBoostedSkillLevel(Skill.HITPOINTS));
         obj.put("prayerpoints", client.getBoostedSkillLevel(Skill.PRAYER));
         obj.put("energy", client.getEnergy());
         obj.put("is_interacting", client.getLocalPlayer().isInteracting());
         obj.put("animation", client.getLocalPlayer().getAnimation());
+
+        ws.sendMessage(obj);
+    }
+
+    public static void sendEnvironmentData(Client client, PythonConnection ws, JSONObject obj) {
+        if (obj == null) {
+            obj = new JSONObject();
+        }
+        WorldPoint lastTickLocation = client.getLocalPlayer().getWorldLocation();
+        WorldPoint[] oneTickTiles = StateDataPlugin.get1TickTiles(client);
+        String tilesString = Arrays.stream(oneTickTiles)
+                .map(id -> String.format("%2s", id))
+                .collect(Collectors.joining(", ", "[", "]"));
+        obj.put("type", "environment");
+        obj.put("location", "[" + lastTickLocation.getX() + ", " + lastTickLocation.getY() + "]");
+        obj.put("oneTickTiles", tilesString);
 
         ws.sendMessage(obj);
     }
