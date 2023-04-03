@@ -173,6 +173,10 @@ public class StateDataPlugin extends Plugin {
             } catch (Exception e) {
                 System.out.println("Cannot connect to websocket: " + e.getMessage());
             }
+            sendConfigs();
+            //LocalPoint p = LocalPoint.fromWorld(client, 3234, 3231);
+            //sendTileClickbox(ws, p);
+            //Map<WorldPoint, Tile> m = findTreeTiles();
             //ws.send(status.toString());
             //printCameraOrientation();
             //getInventoryItemPosition();
@@ -248,14 +252,20 @@ public class StateDataPlugin extends Plugin {
                 {
                     for (GameObject gameObject : tile.getGameObjects())
                     {
-                        Tree tree = Tree.findTree(gameObject.getId());
-                        if (gameObject != null && tree == Tree.REGULAR_TREE)
-                        {
-                            regularTreeTiles.put(tile.getWorldLocation(), tile);
+                        if (gameObject != null) {
+                            Tree tree = Tree.findTree(gameObject.getId());
+                            if (tree == Tree.REGULAR_TREE) {
+                                regularTreeTiles.put(tile.getWorldLocation(), tile);
+                            }
                         }
                     }
                 }
             }
+        }
+
+        for (Map.Entry<WorldPoint, Tile> entry : regularTreeTiles.entrySet()) {
+            System.out.println(entry.getKey().getX() + ", " + entry.getKey().getY());
+            //System.out.println(entry.getValue().getWorldLocation().getX() + ", " + entry.getValue().getWorldLocation().getY());
         }
 
         return regularTreeTiles;
@@ -359,6 +369,28 @@ public class StateDataPlugin extends Plugin {
 
         payload.put("oneTickTiles", tilesString);
         ws.send(payload.toString());
+    }
+
+    public void sendTileClickbox(PythonConnection ws, LocalPoint tile) {
+        JSONObject payload = new JSONObject();
+        Polygon poly = Perspective.getCanvasTilePoly(client, tile);
+        Rectangle bounds = poly.getBounds();
+        int minX = bounds.x;
+        int maxX = bounds.x + bounds.width;
+        int minY = bounds.y;
+        int maxY = bounds.y + bounds.height;
+        String s = "[" + minX + ", " + maxX + "], [" + minY + ", " + maxY + "]";
+        payload.put("tile_clickbox", s);
+        System.out.println(s);
+        ws.send(payload.toString());
+    }
+
+    public void sendConfigs() {
+        Canvas c = client.getCanvas();
+        JSONObject obj = new JSONObject();
+        java.awt.Point canvasLoc = c.getLocationOnScreen();
+        obj.put("canvas_pos", "[" + canvasLoc.x + ", " + canvasLoc.y + "]");
+        ws.send(obj.toString());
     }
 
 }
