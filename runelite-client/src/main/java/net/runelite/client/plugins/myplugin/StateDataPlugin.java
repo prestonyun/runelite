@@ -157,8 +157,8 @@ public class StateDataPlugin extends Plugin {
             if (ws.isConnected()) {
                 try {
                     //ws.send(obj.toString());
-                    ws.sendPlayerData(client, ws, obj);
-                    ws.sendEnvironmentData(client, ws, obj);
+                    //ws.sendPlayerData(client, ws, obj);
+                    //ws.sendEnvironmentData(client, ws, obj);
                     if (tick % 10 == 0) {
                         System.out.println();
                         // TODO:
@@ -173,7 +173,6 @@ public class StateDataPlugin extends Plugin {
             } catch (Exception e) {
                 System.out.println("Cannot connect to websocket: " + e.getMessage());
             }
-            sendConfigs();
             //LocalPoint p = LocalPoint.fromWorld(client, 3234, 3231);
             //sendTileClickbox(ws, p);
             //Map<WorldPoint, Tile> m = findTreeTiles();
@@ -199,7 +198,7 @@ public class StateDataPlugin extends Plugin {
             int animationID = client.getLocalPlayer().getAnimation();
             obj.put("type", "animation");
             obj.put("animationID", animationID);
-            ws.send(obj.toString());
+            //ws.send(obj.toString());
         }
     }
 
@@ -214,7 +213,7 @@ public class StateDataPlugin extends Plugin {
             }
             else
                 obj.put("is_interacting", false);
-            ws.send(obj.toString());
+            //ws.send(obj.toString());
         }
     }
 
@@ -389,7 +388,9 @@ public class StateDataPlugin extends Plugin {
         Canvas c = client.getCanvas();
         JSONObject obj = new JSONObject();
         java.awt.Point canvasLoc = c.getLocationOnScreen();
-        obj.put("canvas_pos", "[" + canvasLoc.x + ", " + canvasLoc.y + "]");
+        int w = canvasLoc.x + c.getWidth();
+        int h = canvasLoc.y + c.getHeight();
+        obj.put("canvas_pos", "[" + canvasLoc.x + ", " + canvasLoc.y + ", " + w + ", " + h + "]");
         ws.send(obj.toString());
     }
 

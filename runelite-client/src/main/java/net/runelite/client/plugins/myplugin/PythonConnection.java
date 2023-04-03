@@ -33,18 +33,23 @@ public class PythonConnection extends WebSocketClient {
 
     @Override
     public void onMessage(String text) {
-        JsonObject obj = (JsonObject) (new Gson()).fromJson(text, JsonObject.class);
+        JsonObject obj = (new Gson()).fromJson(text, JsonObject.class);
         if (obj.has("type")) {
             JSONObject data, payloadObject;
-            String event = obj.get("type").toString();
+            String event = obj.get("type").getAsString();
             switch (event) {
                 case "greeting":
+                    System.out.println("received greeting");
                     payloadObject = new JSONObject();
                     payloadObject.put("greeting", "Hello back!");
                     sendMessage(payloadObject);
+                    System.out.println("responded!");
                     break;
                 case "oneTickTiles":
                     plugin.send1TickTiles(this);
+                    break;
+                case "config":
+                    plugin.sendConfigs();
             }
         }
     }
