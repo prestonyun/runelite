@@ -50,6 +50,12 @@ public class PythonConnection extends WebSocketClient {
                     break;
                 case "config":
                     plugin.sendConfigs();
+                    break;
+                case "player":
+                    sendPlayerData(plugin.client, this, new JSONObject());
+                    break;
+                case "environment":
+                    sendEnvironmentData(plugin.client, this, new JSONObject());
             }
         }
     }

@@ -46,7 +46,7 @@ import net.runelite.client.util.ImageUtil;
 )
 public class StateDataPlugin extends Plugin {
     @Inject
-    private Client client;
+    protected Client client;
     @Inject
     private ClientToolbar clientToolbar;
     @Inject
