@@ -145,7 +145,6 @@ public class StateDataPlugin extends Plugin {
             int tick = client.getTickCount();
 
             currentPlane = client.getPlane();
-            obj.put("type", 0);
             setCameraOrientation();
 
             lastTickLocation = client.getLocalPlayer().getWorldLocation();
@@ -159,12 +158,10 @@ public class StateDataPlugin extends Plugin {
                     //ws.send(obj.toString());
                     //ws.sendPlayerData(client, ws, obj);
                     //ws.sendEnvironmentData(client, ws, obj);
-                    if (tick % 10 == 0) {
-                        System.out.println();
-                        // TODO:
-                        //ws.sendTreeTiles();
+                    obj.put("tick", tick);
+                    ws.send(obj.toString());
                     }
-                } catch (WebsocketNotConnectedException e) {
+                 catch (WebsocketNotConnectedException e) {
                     System.err.println("WebSocket not connected: " + e.getMessage());
                 }
             } else try {
@@ -173,7 +170,7 @@ public class StateDataPlugin extends Plugin {
             } catch (Exception e) {
                 System.out.println("Cannot connect to websocket: " + e.getMessage());
             }
-            getCompassPosition();
+            //getCompassPosition();
             //LocalPoint p = LocalPoint.fromWorld(client, 3234, 3231);
             //sendTileClickbox(ws, p);
             //Map<WorldPoint, Tile> m = findTreeTiles();
@@ -311,8 +308,13 @@ public class StateDataPlugin extends Plugin {
     }
 
     public void setCameraOrientation() {
-        if (client.getCameraPitch() != DESIRED_PITCH || client.getCameraYaw() != DESIRED_YAW || client.getCameraZ() != 433) {
-            clientThread.invokeLater(() -> client.runScript(ScriptID.CAMERA_DO_ZOOM, 433, 433));
+        if (client.getCameraPitch() != DESIRED_PITCH || client.getCameraYaw() != DESIRED_YAW) {
+            if (client.getCameraZ() != 433) {
+                clientThread.invokeLater(() -> client.runScript(ScriptID.CAMERA_DO_ZOOM, 433, 433));
+            }
+            JSONObject obj = new JSONObject();
+            obj.put("type", "camera_mismatch");
+            ws.send(obj.toString());
         }
     }
 
