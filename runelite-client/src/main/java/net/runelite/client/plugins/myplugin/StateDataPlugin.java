@@ -173,6 +173,7 @@ public class StateDataPlugin extends Plugin {
             } catch (Exception e) {
                 System.out.println("Cannot connect to websocket: " + e.getMessage());
             }
+            getCompassPosition();
             //LocalPoint p = LocalPoint.fromWorld(client, 3234, 3231);
             //sendTileClickbox(ws, p);
             //Map<WorldPoint, Tile> m = findTreeTiles();
@@ -215,6 +216,15 @@ public class StateDataPlugin extends Plugin {
                 obj.put("is_interacting", false);
             //ws.send(obj.toString());
         }
+    }
+
+    @Subscribe
+    public void onMenuOpened(MenuOpened menuOpened) {
+        MenuEntry m = menuOpened.getFirstEntry();
+        Widget c = m.getWidget();
+        //System.out.println(c.getName());
+        System.out.println(m.getType().toString());
+        System.out.println(m.getTarget());
     }
 
     @Subscribe
@@ -301,9 +311,15 @@ public class StateDataPlugin extends Plugin {
     }
 
     public void setCameraOrientation() {
-        if (client.getCameraPitch() != DESIRED_PITCH || client.getCameraYaw() != DESIRED_YAW) {
+        if (client.getCameraPitch() != DESIRED_PITCH || client.getCameraYaw() != DESIRED_YAW || client.getCameraZ() != 433) {
             clientThread.invokeLater(() -> client.runScript(ScriptID.CAMERA_DO_ZOOM, 433, 433));
         }
+    }
+
+    public void getCompassPosition() {
+        ItemComposition compass = client.getItemDefinition(ItemID.COMPASS);
+        System.out.println(compass.getXan2d() + ", " + compass.getYan2d());
+        //Point loc = client.getLocalPlayer().getCanvasSpriteLocation();
     }
 
     public void getTileLocation() {
