@@ -175,10 +175,6 @@ public class StateDataPlugin extends Plugin {
             //sendTileClickbox(ws, p);
             //Map<WorldPoint, Tile> m = findTreeTiles();
             //ws.send(status.toString());
-            //printCameraOrientation();
-            //getInventoryItemPosition();
-            //getTileLocation();
-            //get1TickTiles();
         }
     }
 
