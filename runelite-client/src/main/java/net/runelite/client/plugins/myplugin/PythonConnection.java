@@ -1,8 +1,11 @@
 package net.runelite.client.plugins.myplugin;
 
 import net.runelite.api.Client;
+import net.runelite.api.MenuEntry;
 import net.runelite.api.Skill;
 import net.runelite.api.coords.WorldPoint;
+import net.runelite.api.events.MenuOpened;
+import net.runelite.api.widgets.Widget;
 import org.java_websocket.client.WebSocketClient;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
@@ -56,6 +59,13 @@ public class PythonConnection extends WebSocketClient {
                     break;
                 case "environment":
                     sendEnvironmentData(plugin.client, this, new JSONObject());
+                    break;
+                case "menu_option_coords":
+                    if (plugin.isMenuOpened)
+                    {
+                        sendMenuCoords(plugin.client, this, new JSONObject(), plugin.menuOpened);
+                    }
+                    break;
             }
         }
     }
@@ -81,6 +91,27 @@ public class PythonConnection extends WebSocketClient {
 
     private void sendMessage(JSONObject message) {
         this.socket.send(message.toString());
+    }
+
+    public static void sendMenuCoords(Client client, PythonConnection ws, JSONObject obj, MenuOpened m) {
+        if (obj == null) {
+            obj = new JSONObject();
+        }
+        JSONObject obj2 = new JSONObject();
+        obj.put("type", "menu_option_coords");
+        MenuEntry[] ms = m.getMenuEntries();
+        for (MenuEntry entry : ms)
+        {
+            Widget c = entry.getWidget();
+            int x = c.getCanvasLocation().getX();
+            int y = c.getCanvasLocation().getY();
+            String name = c.getName();
+            System.out.println(c.getCanvasLocation().getX() + ", " + c.getCanvasLocation().getY());
+            obj2.put(name, "[" + x + ", " + y + "]");
+        }
+        obj.put("coords", obj2);
+        ws.sendMessage(obj);
+
     }
 
     public static void sendPlayerData(Client client, PythonConnection ws, JSONObject obj) {

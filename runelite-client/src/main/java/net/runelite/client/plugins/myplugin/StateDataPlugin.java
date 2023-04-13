@@ -64,6 +64,8 @@ public class StateDataPlugin extends Plugin {
     private static final int DESIRED_YAW = 0;
     private int currentPlane;
     private JSONObject obj;
+    public boolean isMenuOpened;
+    public MenuOpened menuOpened;
     @Getter
     private final Set<GameObject> treeObjects = new HashSet<>();
     @Getter(AccessLevel.PACKAGE)
@@ -93,6 +95,7 @@ public class StateDataPlugin extends Plugin {
         panel.init(config);
         log.info("Example started!");
         ga = new GameEnvironment(client);
+        isMenuOpened = false;
 
 
         props = new Properties();
@@ -145,7 +148,6 @@ public class StateDataPlugin extends Plugin {
             int tick = client.getTickCount();
 
             currentPlane = client.getPlane();
-            setCameraOrientation();
 
             lastTickLocation = client.getLocalPlayer().getWorldLocation();
 
@@ -153,13 +155,14 @@ public class StateDataPlugin extends Plugin {
             //obj.put("inventory", getInventoryAsString());
 
             //ws.send(obj.toString());
-            if (ws.isConnected()) {
+            if (ws.isConnected() && tick % 10 == 0) {
                 try {
                     //ws.send(obj.toString());
                     //ws.sendPlayerData(client, ws, obj);
                     //ws.sendEnvironmentData(client, ws, obj);
+                    setCameraOrientation();
                     obj.put("tick", tick);
-                    ws.send(obj.toString());
+                    //ws.send(obj.toString());
                     }
                  catch (WebsocketNotConnectedException e) {
                     System.err.println("WebSocket not connected: " + e.getMessage());
@@ -170,7 +173,7 @@ public class StateDataPlugin extends Plugin {
             } catch (Exception e) {
                 System.out.println("Cannot connect to websocket: " + e.getMessage());
             }
-            //getCompassPosition();
+            getCompassPosition();
             //LocalPoint p = LocalPoint.fromWorld(client, 3234, 3231);
             //sendTileClickbox(ws, p);
             //Map<WorldPoint, Tile> m = findTreeTiles();
@@ -212,12 +215,9 @@ public class StateDataPlugin extends Plugin {
     }
 
     @Subscribe
-    public void onMenuOpened(MenuOpened menuOpened) {
-        MenuEntry m = menuOpened.getFirstEntry();
-        Widget c = m.getWidget();
-        //System.out.println(c.getName());
-        System.out.println(m.getType().toString());
-        System.out.println(m.getTarget());
+    public void onMenuOpened(MenuOpened m) {
+        isMenuOpened = true;
+        menuOpened = m;
     }
 
     @Subscribe
