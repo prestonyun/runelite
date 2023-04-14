@@ -221,7 +221,7 @@ public class StateDataPlugin extends Plugin {
     public void onMenuOpened(MenuOpened m) {
         isMenuOpened = true;
         menuOpened = m;
-        System.out.println("menu opened");
+        System.out.println("menu opened " + m.getFirstEntry().getType());
     }
 
     @Subscribe

@@ -102,21 +102,25 @@ public class PythonConnection extends WebSocketClient {
         if (obj == null) {
             obj = new JSONObject();
         }
-        JSONObject obj2 = new JSONObject();
         obj.put("type", "menu_option_coords");
         MenuEntry[] ms = m.getMenuEntries();
+        System.out.println("ms size: " + ms.length);
+        int index = ms.length;
         for (MenuEntry entry : ms)
         {
+            System.out.println(entry.getType());
             Widget c = entry.getWidget();
-            int x = c.getCanvasLocation().getX();
-            int y = c.getCanvasLocation().getY();
-            String name = c.getName();
-            System.out.println(name + ": " + c.getCanvasLocation().getX() + ", " + c.getCanvasLocation().getY());
-            obj2.put(name, "[" + x + ", " + y + "]");
-        }
-        obj.put("coords", obj2);
-        ws.sendMessage(obj);
+            if (c != null) {
+                int x = c.getCanvasLocation().getX() + 5;
+                int y = c.getCanvasLocation().getY() + 25 + (17 * index);
+                String name = entry.getOption();
+                System.out.println(name + ": " + x + ", " + y);
+                obj.put(name, "[" + x + ", " + y + "]");
+            }
+            index--;
 
+        }
+        ws.sendMessage(obj);
     }
 
     public static void sendPlayerData(Client client, PythonConnection ws, JSONObject obj) {
