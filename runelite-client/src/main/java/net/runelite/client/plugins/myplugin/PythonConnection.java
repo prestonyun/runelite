@@ -37,6 +37,7 @@ public class PythonConnection extends WebSocketClient {
     @Override
     public void onMessage(String text) {
         JsonObject obj = (new Gson()).fromJson(text, JsonObject.class);
+        System.out.println(obj.toString());
         if (obj.has("type")) {
             JSONObject data, payloadObject;
             String event = obj.get("type").getAsString();
@@ -54,6 +55,9 @@ public class PythonConnection extends WebSocketClient {
                 case "config":
                     plugin.sendConfigs();
                     break;
+                case "camera":
+                    plugin.setCameraOrientation();
+                    break;
                 case "player":
                     sendPlayerData(plugin.client, this, new JSONObject());
                     break;
@@ -63,7 +67,7 @@ public class PythonConnection extends WebSocketClient {
                 case "menu_option_coords":
                     if (plugin.isMenuOpened)
                     {
-                        sendMenuCoords(plugin.client, this, new JSONObject(), plugin.menuOpened);
+                        sendMenuCoords(this, new JSONObject(), plugin.menuOpened);
                     }
                     break;
             }
@@ -90,10 +94,11 @@ public class PythonConnection extends WebSocketClient {
     }
 
     private void sendMessage(JSONObject message) {
+        System.out.println(message.toString());
         this.socket.send(message.toString());
     }
 
-    public static void sendMenuCoords(Client client, PythonConnection ws, JSONObject obj, MenuOpened m) {
+    public static void sendMenuCoords(PythonConnection ws, JSONObject obj, MenuOpened m) {
         if (obj == null) {
             obj = new JSONObject();
         }
@@ -106,7 +111,7 @@ public class PythonConnection extends WebSocketClient {
             int x = c.getCanvasLocation().getX();
             int y = c.getCanvasLocation().getY();
             String name = c.getName();
-            System.out.println(c.getCanvasLocation().getX() + ", " + c.getCanvasLocation().getY());
+            System.out.println(name + ": " + c.getCanvasLocation().getX() + ", " + c.getCanvasLocation().getY());
             obj2.put(name, "[" + x + ", " + y + "]");
         }
         obj.put("coords", obj2);

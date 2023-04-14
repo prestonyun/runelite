@@ -146,6 +146,9 @@ public class StateDataPlugin extends Plugin {
         } else {
             obj = new JSONObject();
             int tick = client.getTickCount();
+            if (client.getCameraZ() != 433) {
+                clientThread.invokeLater(() -> client.runScript(ScriptID.CAMERA_DO_ZOOM, 433, 433));
+            }
 
             currentPlane = client.getPlane();
 
@@ -155,17 +158,19 @@ public class StateDataPlugin extends Plugin {
             //obj.put("inventory", getInventoryAsString());
 
             //ws.send(obj.toString());
-            if (ws.isConnected() && tick % 10 == 0) {
-                try {
-                    //ws.send(obj.toString());
-                    //ws.sendPlayerData(client, ws, obj);
-                    //ws.sendEnvironmentData(client, ws, obj);
-                    setCameraOrientation();
-                    obj.put("tick", tick);
-                    //ws.send(obj.toString());
+            if (ws.isConnected()) {
+                if (tick % 10 == 0) {
+                    try {
+                        //ws.send(obj.toString());
+                        //ws.sendPlayerData(client, ws, obj);
+                        //ws.sendEnvironmentData(client, ws, obj);
+                        //setCameraOrientation();
+                        obj.put("tick", tick);
+                        //ws.send(obj.toString());
                     }
-                 catch (WebsocketNotConnectedException e) {
-                    System.err.println("WebSocket not connected: " + e.getMessage());
+                    catch (WebsocketNotConnectedException e) {
+                        System.err.println("WebSocket not connected: " + e.getMessage());
+                    }
                 }
             } else try {
                 ws = new PythonConnection(new URI("ws://localhost:8765"), new Draft_6455(), this);
@@ -173,7 +178,7 @@ public class StateDataPlugin extends Plugin {
             } catch (Exception e) {
                 System.out.println("Cannot connect to websocket: " + e.getMessage());
             }
-            getCompassPosition();
+            //getCompassPosition();
             //LocalPoint p = LocalPoint.fromWorld(client, 3234, 3231);
             //sendTileClickbox(ws, p);
             //Map<WorldPoint, Tile> m = findTreeTiles();
@@ -191,33 +196,32 @@ public class StateDataPlugin extends Plugin {
     @Subscribe
     public void onAnimationChanged(AnimationChanged animationChanged) {
         if (animationChanged.getActor() == client.getLocalPlayer()) {
-            obj = new JSONObject();
+            //obj = new JSONObject();
             int animationID = client.getLocalPlayer().getAnimation();
-            obj.put("type", "animation");
-            obj.put("animationID", animationID);
+            //obj.put("type", "animation");
+            //obj.put("animationID", animationID);
             //ws.send(obj.toString());
         }
     }
 
-    @Subscribe
-    public void onInteractingChanged(InteractingChanged interactingChanged) {
-        if (interactingChanged.getSource() == client.getLocalPlayer()) {
-            obj = new JSONObject();
-            obj.put("type", "interaction");
-            if (interactingChanged.getTarget() != null) {
-                obj.put("interacting_with", interactingChanged.getTarget());
-                obj.put("is_interacting", true);
-            }
-            else
-                obj.put("is_interacting", false);
+    //@Subscribe
+    //public void onInteractingChanged(InteractingChanged interactingChanged) {
+        //if (interactingChanged.getSource() == client.getLocalPlayer()) {
+            //obj = new JSONObject();
+            //obj.put("type", "interaction");
+            //if (interactingChanged.getTarget() != null) {
+                //obj.put("interacting_with", interactingChanged.getTarget());
+                //obj.put("is_interacting", true);
+                //obj.put("is_interacting", false);
             //ws.send(obj.toString());
-        }
-    }
+        //}
+    //}
 
     @Subscribe
     public void onMenuOpened(MenuOpened m) {
         isMenuOpened = true;
         menuOpened = m;
+        System.out.println("menu opened");
     }
 
     @Subscribe
@@ -305,9 +309,7 @@ public class StateDataPlugin extends Plugin {
 
     public void setCameraOrientation() {
         if (client.getCameraPitch() != DESIRED_PITCH || client.getCameraYaw() != DESIRED_YAW) {
-            if (client.getCameraZ() != 433) {
-                clientThread.invokeLater(() -> client.runScript(ScriptID.CAMERA_DO_ZOOM, 433, 433));
-            }
+            System.out.println("sending camera mismatch");
             JSONObject obj = new JSONObject();
             obj.put("type", "camera_mismatch");
             ws.send(obj.toString());
@@ -404,6 +406,7 @@ public class StateDataPlugin extends Plugin {
         java.awt.Point canvasLoc = c.getLocationOnScreen();
         int w = canvasLoc.x + c.getWidth();
         int h = canvasLoc.y + c.getHeight();
+        obj.put("type", "config");
         obj.put("canvas_pos", "[" + canvasLoc.x + ", " + canvasLoc.y + ", " + w + ", " + h + "]");
         ws.send(obj.toString());
     }
