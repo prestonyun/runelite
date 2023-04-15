@@ -276,8 +276,9 @@ public class StateDataPlugin extends Plugin {
 
         return regularTreeTiles;
     }
+
     public String getInventoryAsString() {
-        ItemContainer inventory = client.getItemContainer(net.runelite.api.InventoryID.INVENTORY);
+        ItemContainer inventory = client.getItemContainer(InventoryID.INVENTORY);
         if (inventory != null) {
             Item[] items = inventory.getItems();
             String[] fixedSizeItems = new String[28];

@@ -1,8 +1,6 @@
 package net.runelite.client.plugins.myplugin;
 
-import net.runelite.api.Client;
-import net.runelite.api.MenuEntry;
-import net.runelite.api.Skill;
+import net.runelite.api.*;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.MenuOpened;
 import net.runelite.api.widgets.Widget;
@@ -70,6 +68,9 @@ public class PythonConnection extends WebSocketClient {
                         sendMenuCoords(this, new JSONObject(), plugin.menuOpened);
                     }
                     break;
+                case "tinderbox_index":
+                    sendMessage("tinderbox_index", getTinderboxIndex());
+                    break;
             }
         }
     }
@@ -96,6 +97,28 @@ public class PythonConnection extends WebSocketClient {
     private void sendMessage(JSONObject message) {
         System.out.println(message.toString());
         this.socket.send(message.toString());
+    }
+
+    private void sendMessage(String type, int value) {
+        JSONObject obj = new JSONObject();
+        obj.put(type, value);
+
+        this.socket.send(obj.toString());
+    }
+
+    private int getTinderboxIndex() {
+        int index = -1;
+        ItemContainer inventory = plugin.client.getItemContainer(InventoryID.INVENTORY);
+        if (inventory != null) {
+            Item[] items = inventory.getItems();
+            for (int i = 0; i < items.length; i++) {
+                if (items[i].getId() == ItemID.TINDERBOX) {
+                    index = i;
+                    break;
+                }
+            }
+        }
+        return index;
     }
 
     public static void sendMenuCoords(PythonConnection ws, JSONObject obj, MenuOpened m) {
