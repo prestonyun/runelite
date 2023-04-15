@@ -69,7 +69,10 @@ public class PythonConnection extends WebSocketClient {
                     }
                     break;
                 case "tinderbox_index":
-                    sendMessage("tinderbox_index", getTinderboxIndex());
+                    sendMessage("tinderbox_index", getInventoryIndex(ItemID.TINDERBOX));
+                    break;
+                case "inventory":
+                    getInventoryItems();
                     break;
             }
         }
@@ -106,13 +109,27 @@ public class PythonConnection extends WebSocketClient {
         this.socket.send(obj.toString());
     }
 
-    private int getTinderboxIndex() {
-        int index = -1;
+    private void getInventoryItems() {
         ItemContainer inventory = plugin.client.getItemContainer(InventoryID.INVENTORY);
+        JSONObject obj = new JSONObject();
         if (inventory != null) {
             Item[] items = inventory.getItems();
             for (int i = 0; i < items.length; i++) {
-                if (items[i].getId() == ItemID.TINDERBOX) {
+                if (items[i] != null) {
+                    obj.put(String.valueOf(i), items[i].getId());
+                }
+            }
+        }
+        sendMessage(obj);
+    }
+
+    private int getInventoryIndex(int itemID) {
+        int index = -1;
+        ItemContainer inven = plugin.client.getItemContainer(InventoryID.INVENTORY);
+        if (inven != null) {
+            Item[] items = inven.getItems();
+            for (int i = 0; i < items.length; i++) {
+                if (items[i].getId() == itemID) {
                     index = i;
                     break;
                 }
