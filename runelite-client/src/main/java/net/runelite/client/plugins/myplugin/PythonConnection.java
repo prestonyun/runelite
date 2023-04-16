@@ -74,6 +74,9 @@ public class PythonConnection extends WebSocketClient {
                 case "inventory":
                     getInventoryItems();
                     break;
+                case "indices":
+                    int item = obj.get("data").getAsInt();
+                    sendMessage("indices", getInventoryIndices(item));
             }
         }
     }
@@ -100,6 +103,12 @@ public class PythonConnection extends WebSocketClient {
     private void sendMessage(JSONObject message) {
         System.out.println(message.toString());
         this.socket.send(message.toString());
+    }
+
+    private void sendMessage(String type, String data) {
+        JSONObject obj = new JSONObject();
+        obj.put(type, data);
+        this.socket.send(obj.toString());
     }
 
     private void sendMessage(String type, int value) {
@@ -136,6 +145,23 @@ public class PythonConnection extends WebSocketClient {
             }
         }
         return index;
+    }
+
+    private String getInventoryIndices(int itemID) {
+        int[] indices = new int[28];
+        ItemContainer inven = plugin.client.getItemContainer(InventoryID.INVENTORY);
+        if (inven != null) {
+            Item[] items = inven.getItems();
+            for (int i = 0; i < items.length; i++) {
+                if (items[i].getId() == itemID) {
+                    indices[i] = i;
+                }
+                else
+                    indices[i] = -1;
+            }
+
+        }
+        return Arrays.toString(indices);
     }
 
     public static void sendMenuCoords(PythonConnection ws, JSONObject obj, MenuOpened m) {

@@ -58,6 +58,7 @@ public class StateDataPlugin extends Plugin {
     @Inject
     private ClientThread clientThread;
     private PythonConnection ws;
+    private PythonConnection state;
     private Properties props;
     private GameEnvironment ga;
     private static final int DESIRED_PITCH = 512;
@@ -107,6 +108,9 @@ public class StateDataPlugin extends Plugin {
 
         ws = new PythonConnection(new URI("ws://localhost:8765"), new Draft_6455(), this);
         ws.connect();
+
+        state = new PythonConnection(new URI("ws://localhost:8766"), new Draft_6455(), this);
+        state.connect();
 
         final BufferedImage icon = ImageUtil.loadImageResource(getClass(), "combaticon.png");
 
