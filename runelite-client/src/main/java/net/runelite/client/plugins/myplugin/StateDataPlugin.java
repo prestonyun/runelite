@@ -122,7 +122,7 @@ public class StateDataPlugin extends Plugin {
                 .build();
 
         clientToolbar.addNavigation(navButton);
-        previousInventory = client.getItemContainer(InventoryID.INVENTORY);
+        //previousInventory = client.getItemContainer(InventoryID.INVENTORY);
     }
 
     @Override
@@ -165,20 +165,19 @@ public class StateDataPlugin extends Plugin {
             if (ws.isConnected()) {
                 if (tick % 10 == 0) {
                     try {
-                        //ws.send(obj.toString());
-                        //ws.sendPlayerData(client, ws, obj);
-                        //ws.sendEnvironmentData(client, ws, obj);
-                        //setCameraOrientation();
+                        state.send(obj.toString());
+                        state.sendPlayerData(client, state, new JSONObject());
+                        state.sendEnvironmentData(client, state, new JSONObject());
                         obj.put("tick", tick);
-                        //ws.send(obj.toString());
+                        state.send(obj.toString());
                     }
                     catch (WebsocketNotConnectedException e) {
                         System.err.println("WebSocket not connected: " + e.getMessage());
                     }
                 }
             } else try {
-                ws = new PythonConnection(new URI("ws://localhost:8765"), new Draft_6455(), this);
-                ws.connect();
+                state = new PythonConnection(new URI("ws://localhost:8766"), new Draft_6455(), this);
+                state.connect();
             } catch (Exception e) {
                 System.out.println("Cannot connect to websocket: " + e.getMessage());
             }

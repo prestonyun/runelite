@@ -14,7 +14,7 @@ import org.json.JSONObject;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.Arrays;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class PythonConnection extends WebSocketClient {
@@ -120,15 +120,38 @@ public class PythonConnection extends WebSocketClient {
 
     private void getInventoryItems() {
         ItemContainer inventory = plugin.client.getItemContainer(InventoryID.INVENTORY);
-        JSONObject obj = new JSONObject();
-        if (inventory != null) {
-            Item[] items = inventory.getItems();
-            for (int i = 0; i < items.length; i++) {
-                if (items[i] != null) {
-                    obj.put(String.valueOf(i), items[i].getId());
+        Item[] items = inventory.getItems();
+        Map<Integer, Map<String, Object>> inventoryItems = new HashMap<>();
+
+        for (int i = 0; i < items.length; i++) {
+            if (items[i] != null && items[i].getId() != -1) {
+                int itemID = items[i].getId();
+                int quantity = inventory.count(itemID);
+                if (!inventoryItems.containsKey(itemID)) {
+                    Map<String, Object> item = new HashMap<>();
+                    item.put("quantity", quantity);
+                    List<Integer> indices = new ArrayList<>();
+                    indices.add(i);
+                    item.put("indices", indices);
+                    inventoryItems.put(itemID, item);
+                } else {
+                    Map<String, Object> item = inventoryItems.get(itemID);
+                    List<Integer> indices = (List<Integer>) item.get("indices");
+                    indices.add(i);
                 }
             }
         }
+        JSONObject obj = new JSONObject();
+        obj.put("type", "inventory");
+
+        for (Map.Entry<Integer, Map<String, Object>> entry : inventoryItems.entrySet()) {
+            int itemID = entry.getKey();
+            Map<String, Object> item = entry.getValue();
+            int quantity = (int) item.get("quantity");
+            List<Integer> indices = (List<Integer>) item.get("indices");
+            obj.put(String.valueOf(itemID), String.format("[%d,%s]", quantity, indices.stream().map(String::valueOf).collect(Collectors.joining(","))));
+        }
+
         sendMessage(obj);
     }
 
@@ -211,9 +234,9 @@ public class PythonConnection extends WebSocketClient {
         WorldPoint[] oneTickTiles = StateDataPlugin.get1TickTiles(client);
         String tilesString = Arrays.stream(oneTickTiles)
                 .map(id -> String.format("%2s", id))
-                .collect(Collectors.joining(", ", "[", "]"));
+                .collect(Collectors.joining(", ", "(", ")"));
         obj.put("type", "environment");
-        obj.put("location", "[" + lastTickLocation.getX() + ", " + lastTickLocation.getY() + "]");
+        obj.put("location", "(" + lastTickLocation.getX() + ", " + lastTickLocation.getY() + ")");
         obj.put("oneTickTiles", tilesString);
 
         ws.sendMessage(obj);
