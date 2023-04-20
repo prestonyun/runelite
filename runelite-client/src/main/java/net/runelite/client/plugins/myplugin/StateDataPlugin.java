@@ -45,6 +45,14 @@ import net.runelite.client.util.ImageUtil;
         name = "State Data"
 )
 public class StateDataPlugin extends Plugin {
+    private static final int DESIRED_PITCH = 512;
+    private static final int DESIRED_YAW = 0;
+    @Getter
+    private final Set<GameObject> treeObjects = new HashSet<>();
+    @Getter(AccessLevel.PACKAGE)
+    private final List<TreeRespawn> respawns = new ArrayList<>();
+    public boolean isMenuOpened;
+    public MenuOpened menuOpened;
     @Inject
     protected Client client;
     @Inject
@@ -61,16 +69,14 @@ public class StateDataPlugin extends Plugin {
     private PythonConnection state;
     private Properties props;
     private GameEnvironment ga;
-    private static final int DESIRED_PITCH = 512;
-    private static final int DESIRED_YAW = 0;
     private int currentPlane;
     private JSONObject obj;
-    public boolean isMenuOpened;
-    public MenuOpened menuOpened;
-    @Getter
-    private final Set<GameObject> treeObjects = new HashSet<>();
-    @Getter(AccessLevel.PACKAGE)
-    private final List<TreeRespawn> respawns = new ArrayList<>();
+
+    private static WidgetItem getWidgetItem(Widget parentWidget, int idx) {
+        assert parentWidget.isIf3();
+        Widget wi = parentWidget.getChild(idx);
+        return new WidgetItem(wi.getItemId(), wi.getItemQuantity(), wi.getBounds(), parentWidget, wi.getBounds());
+    }
 
     @Provides
     StateDataConfig provideConfig(ConfigManager configManager) {
@@ -162,18 +168,15 @@ public class StateDataPlugin extends Plugin {
             //obj.put("inventory", getInventoryAsString());
 
             //ws.send(obj.toString());
-            if (ws.isConnected()) {
-                if (tick % 10 == 0) {
-                    try {
-                        state.send(obj.toString());
-                        state.sendPlayerData(client, state, new JSONObject());
-                        state.sendEnvironmentData(client, state, new JSONObject());
-                        obj.put("tick", tick);
-                        state.send(obj.toString());
-                    }
-                    catch (WebsocketNotConnectedException e) {
-                        System.err.println("WebSocket not connected: " + e.getMessage());
-                    }
+            if (state.isConnected()) {
+                try {
+                    PythonConnection.sendPlayerData(client, state, new JSONObject());
+                    PythonConnection.sendEnvironmentData(client, state, new JSONObject());
+                    state.getInventoryItems();
+                    obj.put("tick", tick);
+                    state.send(obj.toString());
+                } catch (WebsocketNotConnectedException e) {
+                    System.err.println("WebSocket not connected: " + e.getMessage());
                 }
             } else try {
                 state = new PythonConnection(new URI("ws://localhost:8766"), new Draft_6455(), this);
@@ -196,6 +199,19 @@ public class StateDataPlugin extends Plugin {
         }
     }
 
+    //@Subscribe
+    //public void onInteractingChanged(InteractingChanged interactingChanged) {
+    //if (interactingChanged.getSource() == client.getLocalPlayer()) {
+    //obj = new JSONObject();
+    //obj.put("type", "interaction");
+    //if (interactingChanged.getTarget() != null) {
+    //obj.put("interacting_with", interactingChanged.getTarget());
+    //obj.put("is_interacting", true);
+    //obj.put("is_interacting", false);
+    //ws.send(obj.toString());
+    //}
+    //}
+
     @Subscribe
     public void onAnimationChanged(AnimationChanged animationChanged) {
         if (animationChanged.getActor() == client.getLocalPlayer()) {
@@ -206,19 +222,6 @@ public class StateDataPlugin extends Plugin {
             //ws.send(obj.toString());
         }
     }
-
-    //@Subscribe
-    //public void onInteractingChanged(InteractingChanged interactingChanged) {
-        //if (interactingChanged.getSource() == client.getLocalPlayer()) {
-            //obj = new JSONObject();
-            //obj.put("type", "interaction");
-            //if (interactingChanged.getTarget() != null) {
-                //obj.put("interacting_with", interactingChanged.getTarget());
-                //obj.put("is_interacting", true);
-                //obj.put("is_interacting", false);
-            //ws.send(obj.toString());
-        //}
-    //}
 
     @Subscribe
     public void onMenuOpened(MenuOpened m) {
@@ -249,18 +252,15 @@ public class StateDataPlugin extends Plugin {
         }
     }
 
-    Map<WorldPoint, Tile> findTreeTiles()
-    {
+    Map<WorldPoint, Tile> findTreeTiles() {
         Map<WorldPoint, Tile> regularTreeTiles = new HashMap<>();
         Scene scene = client.getScene();
         Tile[][][] tiles = scene.getTiles();
         for (int x = 0; x < scene.getTiles()[client.getPlane()].length; x++) {
             for (int y = 0; y < scene.getTiles()[client.getPlane()][x].length; y++) {
                 Tile tile = tiles[client.getPlane()][x][y];
-                if (tile != null)
-                {
-                    for (GameObject gameObject : tile.getGameObjects())
-                    {
+                if (tile != null) {
+                    for (GameObject gameObject : tile.getGameObjects()) {
                         if (gameObject != null) {
                             Tree tree = Tree.findTree(gameObject.getId());
                             if (tree == Tree.REGULAR_TREE) {
@@ -343,10 +343,16 @@ public class StateDataPlugin extends Plugin {
         }
     }
 
-    private static WidgetItem getWidgetItem(Widget parentWidget, int idx) {
-        assert parentWidget.isIf3();
-        Widget wi = parentWidget.getChild(idx);
-        return new WidgetItem(wi.getItemId(), wi.getItemQuantity(), wi.getBounds(), parentWidget, wi.getBounds());
+    public void send1TickTiles(PythonConnection ws) {
+        JSONObject payload = new JSONObject();
+        payload.put("type", "oneTickTiles");
+        WorldPoint[] tiles = get1TickTiles(client);
+        String tilesString = Arrays.stream(tiles)
+                .map(id -> String.format("%2s", id))
+                .collect(Collectors.joining(", ", "[", "]"));
+
+        payload.put("oneTickTiles", tilesString);
+        ws.send(payload.toString());
     }
 
     public static WorldPoint[] get1TickTiles(Client client) {
@@ -376,18 +382,6 @@ public class StateDataPlugin extends Plugin {
         }
 
         return tiles;
-    }
-
-    public void send1TickTiles(PythonConnection ws) {
-        JSONObject payload = new JSONObject();
-        payload.put("type", "oneTickTiles");
-        WorldPoint[] tiles = get1TickTiles(client);
-        String tilesString = Arrays.stream(tiles)
-                .map(id -> String.format("%2s", id))
-                .collect(Collectors.joining(", ", "[", "]"));
-
-        payload.put("oneTickTiles", tilesString);
-        ws.send(payload.toString());
     }
 
     public void sendTileClickbox(PythonConnection ws, LocalPoint tile) {

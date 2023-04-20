@@ -19,6 +19,8 @@ import java.util.stream.Collectors;
 
 public class PythonConnection extends WebSocketClient {
     private final StateDataPlugin plugin;
+    private final WebSocket socket;
+    private boolean isConnected;
 
     public PythonConnection(URI serverUri, Draft draft, StateDataPlugin plugin) {
         super(serverUri, draft);
@@ -63,8 +65,7 @@ public class PythonConnection extends WebSocketClient {
                     sendEnvironmentData(plugin.client, this, new JSONObject());
                     break;
                 case "menu_option_coords":
-                    if (plugin.isMenuOpened)
-                    {
+                    if (plugin.isMenuOpened) {
                         sendMenuCoords(this, new JSONObject(), plugin.menuOpened);
                     }
                     break;
@@ -92,124 +93,9 @@ public class PythonConnection extends WebSocketClient {
         System.err.println("An error occurred: " + e.getMessage());
     }
 
-    private WebSocket socket;
-
-    private boolean isConnected;
-
-    public boolean isConnected() {
-        return isConnected;
-    }
-
     private void sendMessage(JSONObject message) {
         System.out.println(message.toString());
         this.socket.send(message.toString());
-    }
-
-    private void sendMessage(String type, String data) {
-        JSONObject obj = new JSONObject();
-        obj.put(type, data);
-        this.socket.send(obj.toString());
-    }
-
-    private void sendMessage(String type, int value) {
-        JSONObject obj = new JSONObject();
-        obj.put(type, value);
-
-        this.socket.send(obj.toString());
-    }
-
-    private void getInventoryItems() {
-        ItemContainer inventory = plugin.client.getItemContainer(InventoryID.INVENTORY);
-        Item[] items = inventory.getItems();
-        Map<Integer, Map<String, Object>> inventoryItems = new HashMap<>();
-
-        for (int i = 0; i < items.length; i++) {
-            if (items[i] != null && items[i].getId() != -1) {
-                int itemID = items[i].getId();
-                int quantity = inventory.count(itemID);
-                if (!inventoryItems.containsKey(itemID)) {
-                    Map<String, Object> item = new HashMap<>();
-                    item.put("quantity", quantity);
-                    List<Integer> indices = new ArrayList<>();
-                    indices.add(i);
-                    item.put("indices", indices);
-                    inventoryItems.put(itemID, item);
-                } else {
-                    Map<String, Object> item = inventoryItems.get(itemID);
-                    List<Integer> indices = (List<Integer>) item.get("indices");
-                    indices.add(i);
-                }
-            }
-        }
-        JSONObject obj = new JSONObject();
-        obj.put("type", "inventory");
-
-        for (Map.Entry<Integer, Map<String, Object>> entry : inventoryItems.entrySet()) {
-            int itemID = entry.getKey();
-            Map<String, Object> item = entry.getValue();
-            int quantity = (int) item.get("quantity");
-            List<Integer> indices = (List<Integer>) item.get("indices");
-            obj.put(String.valueOf(itemID), String.format("[%d,%s]", quantity, indices.stream().map(String::valueOf).collect(Collectors.joining(","))));
-        }
-
-        sendMessage(obj);
-    }
-
-    private int getInventoryIndex(int itemID) {
-        int index = -1;
-        ItemContainer inven = plugin.client.getItemContainer(InventoryID.INVENTORY);
-        if (inven != null) {
-            Item[] items = inven.getItems();
-            for (int i = 0; i < items.length; i++) {
-                if (items[i].getId() == itemID) {
-                    index = i;
-                    break;
-                }
-            }
-        }
-        return index;
-    }
-
-    private String getInventoryIndices(int itemID) {
-        int[] indices = new int[28];
-        ItemContainer inven = plugin.client.getItemContainer(InventoryID.INVENTORY);
-        if (inven != null) {
-            Item[] items = inven.getItems();
-            for (int i = 0; i < items.length; i++) {
-                if (items[i].getId() == itemID) {
-                    indices[i] = i;
-                }
-                else
-                    indices[i] = -1;
-            }
-
-        }
-        return Arrays.toString(indices);
-    }
-
-    public static void sendMenuCoords(PythonConnection ws, JSONObject obj, MenuOpened m) {
-        if (obj == null) {
-            obj = new JSONObject();
-        }
-        obj.put("type", "menu_option_coords");
-        MenuEntry[] ms = m.getMenuEntries();
-        System.out.println("ms size: " + ms.length);
-        int index = ms.length;
-        for (MenuEntry entry : ms)
-        {
-            System.out.println(entry.getType());
-            Widget c = entry.getWidget();
-            if (c != null) {
-                int x = c.getCanvasLocation().getX() + 5;
-                int y = c.getCanvasLocation().getY() + 25 + (17 * index);
-                String name = entry.getOption();
-                System.out.println(name + ": " + x + ", " + y);
-                obj.put(name, "[" + x + ", " + y + "]");
-            }
-            index--;
-
-        }
-        ws.sendMessage(obj);
     }
 
     public static void sendPlayerData(Client client, PythonConnection ws, JSONObject obj) {
@@ -240,6 +126,115 @@ public class PythonConnection extends WebSocketClient {
         obj.put("oneTickTiles", tilesString);
 
         ws.sendMessage(obj);
+    }
+
+    public static void sendMenuCoords(PythonConnection ws, JSONObject obj, MenuOpened m) {
+        if (obj == null) {
+            obj = new JSONObject();
+        }
+        obj.put("type", "menu_option_coords");
+        MenuEntry[] ms = m.getMenuEntries();
+        System.out.println("ms size: " + ms.length);
+        int index = ms.length;
+        for (MenuEntry entry : ms) {
+            System.out.println(entry.getType());
+            Widget c = entry.getWidget();
+            if (c != null) {
+                int x = c.getCanvasLocation().getX() + 5;
+                int y = c.getCanvasLocation().getY() + 25 + (17 * index);
+                String name = entry.getOption();
+                System.out.println(name + ": " + x + ", " + y);
+                obj.put(name, "[" + x + ", " + y + "]");
+            }
+            index--;
+
+        }
+        ws.sendMessage(obj);
+    }
+
+    private void sendMessage(String type, int value) {
+        JSONObject obj = new JSONObject();
+        obj.put(type, value);
+
+        this.socket.send(obj.toString());
+    }
+
+    private int getInventoryIndex(int itemID) {
+        int index = -1;
+        ItemContainer inven = plugin.client.getItemContainer(InventoryID.INVENTORY);
+        if (inven != null) {
+            Item[] items = inven.getItems();
+            for (int i = 0; i < items.length; i++) {
+                if (items[i].getId() == itemID) {
+                    index = i;
+                    break;
+                }
+            }
+        }
+        return index;
+    }
+
+    public void getInventoryItems() {
+        ItemContainer inventory = plugin.client.getItemContainer(InventoryID.INVENTORY);
+        Item[] items = inventory.getItems();
+        Map<Integer, Map<String, Object>> inventoryItems = new HashMap<>();
+
+        for (int i = 0; i < items.length; i++) {
+            if (items[i] != null && items[i].getId() != -1) {
+                int itemID = items[i].getId();
+                int quantity = inventory.count(itemID);
+                if (!inventoryItems.containsKey(itemID)) {
+                    Map<String, Object> item = new HashMap<>();
+                    item.put("quantity", quantity);
+                    List<Integer> indices = new ArrayList<>();
+                    indices.add(i);
+                    item.put("indices", indices);
+                    inventoryItems.put(itemID, item);
+                } else {
+                    Map<String, Object> item = inventoryItems.get(itemID);
+                    List<Integer> indices = (List<Integer>) item.get("indices");
+                    indices.add(i);
+                }
+            }
+        }
+        JSONObject obj = new JSONObject();
+        JSONObject obj2 = new JSONObject();
+
+        for (Map.Entry<Integer, Map<String, Object>> entry : inventoryItems.entrySet()) {
+            int itemID = entry.getKey();
+            Map<String, Object> item = entry.getValue();
+            int quantity = (int) item.get("quantity");
+            List<Integer> indices = (List<Integer>) item.get("indices");
+            obj.put(String.valueOf(itemID), String.format("[%d,%s]", quantity, indices.stream().map(String::valueOf).collect(Collectors.joining(","))));
+        }
+        obj2.put("inventory", obj.toString());
+        sendMessage(obj2);
+    }
+
+    private void sendMessage(String type, String data) {
+        JSONObject obj = new JSONObject();
+        obj.put(type, data);
+        this.socket.send(obj.toString());
+    }
+
+    private String getInventoryIndices(int itemID) {
+        int[] indices = new int[28];
+        ItemContainer inven = plugin.client.getItemContainer(InventoryID.INVENTORY);
+        if (inven != null) {
+            Item[] items = inven.getItems();
+            for (int i = 0; i < items.length; i++) {
+                if (items[i].getId() == itemID) {
+                    indices[i] = i;
+                } else
+                    indices[i] = -1;
+            }
+
+        }
+        return Arrays.toString(indices);
+    }
+
+    public boolean isConnected() {
+        return isConnected;
     }
 
 }
