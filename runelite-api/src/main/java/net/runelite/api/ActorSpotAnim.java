@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Adam <Adam@sigterm.info>
+ * Copyright (c) 2023, Adam <Adam@sigterm.info>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -24,26 +24,55 @@
  */
 package net.runelite.api;
 
-/**
- * An animated object
- */
-public interface DynamicObject extends Renderable
+public interface ActorSpotAnim extends Node
 {
 	/**
-	 * Get the animation applied to the object
+	 * Get the spotanim id
+	 * @see GraphicID
 	 * @return
 	 */
-	Animation getAnimation();
+	int getId();
 
 	/**
-	 * Get the frame of the current animation
+	 * Set the spotanim id
+	 * @see GraphicID
+	 * @param id
+	 */
+	void setId(int id);
+
+	/**
+	 * Get the spotanim height
 	 * @return
 	 */
-	int getAnimFrame();
+	int getHeight();
+
+	/**
+	 * Set the spotanim height
+	 * @param height
+	 */
+	void setHeight(int height);
+
+	/**
+	 * Get the spotanim frame
+	 * @return
+	 */
+	int getFrame();
+
+	/**
+	 * Set the spotanim frame
+	 * @param frame
+	 */
+	void setFrame(int frame);
 
 	/**
 	 * Get the frame cycle. The number of ticks the client has been on this frame.
 	 * @return
 	 */
-	int getAnimCycle();
+	int getCycle();
+
+	/**
+	 * Set the frame cycle.
+	 * @param cycle
+	 */
+	void setCycle(int cycle);
 }
