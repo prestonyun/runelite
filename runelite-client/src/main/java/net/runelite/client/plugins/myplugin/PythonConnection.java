@@ -78,6 +78,20 @@ public class PythonConnection extends WebSocketClient {
                 case "indices":
                     int item = obj.get("data").getAsInt();
                     sendMessage("indices", getInventoryIndices(item));
+                    break;
+                case "trees":
+                    Map<String, List<Double>> trees = plugin.findTreeTiles();
+                    JSONObject treeObject = new JSONObject();
+                    treeObject.put("type", "trees");
+                    StringBuilder treeClickBoxes = new StringBuilder();
+                    for (List<Double> clickbox : trees.values()) {
+                        treeClickBoxes.append(String.format("[%f, %f], ", clickbox.get(0), clickbox.get(1)));
+                    }
+                    if (treeClickBoxes.length() > 2) {
+                        treeClickBoxes.setLength(treeClickBoxes.length() - 2);
+                    }
+                    treeObject.put("data", treeClickBoxes.toString());
+                    sendMessage(treeObject);
             }
         }
     }
