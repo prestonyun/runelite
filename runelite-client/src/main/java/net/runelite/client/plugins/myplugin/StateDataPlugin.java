@@ -181,7 +181,8 @@ public class StateDataPlugin extends Plugin {
                     }
                     findTreeTiles();
                     PythonConnection.sendPlayerData(client, state, new JSONObject());
-                    PythonConnection.sendEnvironmentData(client, state, new JSONObject());
+                    state.sendEnvironmentData(client, state, new JSONObject());
+                    getTileLocation();
                     state.getInventoryItems();
                     obj.put("tick", tick);
                     state.send(obj.toString());
@@ -342,7 +343,7 @@ public class StateDataPlugin extends Plugin {
             Point p = Perspective.localToCanvas(client, lp, client.getPlane());
             Polygon poly = Perspective.getCanvasTilePoly(client, lp);
             Rectangle bounds = poly.getBounds();
-            System.out.println(bounds.getCenterX() + ", " + bounds.getCenterY());
+            System.out.println( "tile: " + bounds.getCenterX() + ", " + bounds.getCenterY());
 
             ItemLayer il = selectedTile.getItemLayer();
             if (il != null) {
@@ -352,16 +353,23 @@ public class StateDataPlugin extends Plugin {
         }
     }
 
-    public void send1TickTiles(PythonConnection ws) {
-        JSONObject payload = new JSONObject();
-        payload.put("type", "oneTickTiles");
+    public static String get1TickTilesString(Client client) {
         WorldPoint[] tiles = get1TickTiles(client);
-        String tilesString = Arrays.stream(tiles)
-                .map(id -> String.format("%2s", id))
-                .collect(Collectors.joining(", ", "[", "]"));
-
-        payload.put("oneTickTiles", tilesString);
-        ws.send(payload.toString());
+        StringBuilder s = new StringBuilder();
+        for (WorldPoint tile : tiles) {
+            if (tile != null) {
+                LocalPoint lp = LocalPoint.fromWorld(client, tile);
+                int[] clickbox = getTileClickbox(client, lp);
+                s.append("[").append(tile.getX()).append(", ").append(tile.getY()).append(", ").append(clickbox[0])
+                        .append(", ").append(clickbox[1]).append(", ").append(clickbox[2]).append(", ")
+                        .append(clickbox[3]).append("], ");
+            }
+        }
+        //remove the last comma
+        if (s.length() > 0) {
+            s.delete(s.length() - 2, s.length());
+        }
+        return s.toString();
     }
 
     public static WorldPoint[] get1TickTiles(Client client) {
@@ -377,8 +385,8 @@ public class StateDataPlugin extends Plugin {
         // Calculate the tiles within the boundaries
         WorldPoint[] tiles = new WorldPoint[26];
         int counter = 0;
-        for (int x = xStart; x <= xEnd; x++) {
-            for (int y = yStart; y <= yEnd; y++) {
+        for (int y = yStart; y <= yEnd; y++) {
+            for (int x = xStart; x <= xEnd; x++) {
                 tiles[counter] = new WorldPoint(x, y, client.getPlane());
                 counter++;
                 if (counter >= 26) {
@@ -393,18 +401,19 @@ public class StateDataPlugin extends Plugin {
         return tiles;
     }
 
-    public void sendTileClickbox(PythonConnection ws, LocalPoint tile) {
-        JSONObject payload = new JSONObject();
+    public static int[] getTileClickbox(Client client, LocalPoint tile) {
         Polygon poly = Perspective.getCanvasTilePoly(client, tile);
         Rectangle bounds = poly.getBounds();
+        int result[] = new int[4];
         int minX = bounds.x;
         int maxX = bounds.x + bounds.width;
         int minY = bounds.y;
         int maxY = bounds.y + bounds.height;
-        String s = "[" + minX + ", " + maxX + "], [" + minY + ", " + maxY + "]";
-        payload.put("tile_clickbox", s);
-        System.out.println(s);
-        ws.send(payload.toString());
+        result[0] = minX;
+        result[1] = maxX;
+        result[2] = minY;
+        result[3] = maxY;
+        return result;
     }
 
     public void sendConfigs() {

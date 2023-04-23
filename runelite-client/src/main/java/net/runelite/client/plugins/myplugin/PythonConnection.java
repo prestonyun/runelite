@@ -1,19 +1,21 @@
 package net.runelite.client.plugins.myplugin;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
 import net.runelite.api.*;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.MenuOpened;
 import net.runelite.api.widgets.Widget;
-import org.java_websocket.client.WebSocketClient;
-import com.google.gson.Gson;
-import com.google.gson.JsonObject;
 import org.java_websocket.WebSocket;
+import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.drafts.Draft;
 import org.java_websocket.handshake.ServerHandshake;
 import org.json.JSONObject;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import java.io.IOException;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -50,7 +52,7 @@ public class PythonConnection extends WebSocketClient {
                     System.out.println("responded!");
                     break;
                 case "oneTickTiles":
-                    plugin.send1TickTiles(this);
+                    //plugin.send1TickTiles(this);
                     break;
                 case "config":
                     plugin.sendConfigs();
@@ -131,13 +133,9 @@ public class PythonConnection extends WebSocketClient {
             obj = new JSONObject();
         }
         WorldPoint lastTickLocation = client.getLocalPlayer().getWorldLocation();
-        WorldPoint[] oneTickTiles = StateDataPlugin.get1TickTiles(client);
-        String tilesString = Arrays.stream(oneTickTiles)
-                .map(id -> String.format("%2s", id))
-                .collect(Collectors.joining(", ", "(", ")"));
         obj.put("type", "environment");
         obj.put("location", "(" + lastTickLocation.getX() + ", " + lastTickLocation.getY() + ")");
-        obj.put("oneTickTiles", tilesString);
+        obj.put("oneTickTiles", StateDataPlugin.get1TickTilesString(client));
 
         ws.sendMessage(obj);
     }
@@ -213,14 +211,26 @@ public class PythonConnection extends WebSocketClient {
         }
         JSONObject obj = new JSONObject();
         JSONObject obj2 = new JSONObject();
+        ObjectMapper objectMapper = new ObjectMapper();
 
         for (Map.Entry<Integer, Map<String, Object>> entry : inventoryItems.entrySet()) {
             int itemID = entry.getKey();
             Map<String, Object> item = entry.getValue();
             int quantity = (int) item.get("quantity");
             List<Integer> indices = (List<Integer>) item.get("indices");
-            obj.put(String.valueOf(itemID), String.format("[%d,%s]", quantity, indices.stream().map(String::valueOf).collect(Collectors.joining(","))));
+            String key = String.valueOf(itemID);
+            String value = String.format("[%d,%s]", quantity, indices.stream().map(String::valueOf).collect(Collectors.joining(",")));
+            try {
+                Object keyJson = objectMapper.readValue(key, Object.class);
+                Object valueJson = objectMapper.readValue(value, Object.class);
+                String prettyKey = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(keyJson);
+                String prettyValue = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(valueJson);
+                obj.put(prettyKey, prettyValue);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
+
         obj2.put("inventory", obj.toString());
         sendMessage(obj2);
     }
