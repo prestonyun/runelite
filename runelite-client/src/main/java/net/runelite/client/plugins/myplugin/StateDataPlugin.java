@@ -385,7 +385,7 @@ public class StateDataPlugin extends Plugin {
         // Calculate the tiles within the boundaries
         WorldPoint[] tiles = new WorldPoint[26];
         int counter = 0;
-        for (int y = yStart; y <= yEnd; y++) {
+        for (int y = yEnd; y >= yStart; y--) {
             for (int x = xStart; x <= xEnd; x++) {
                 tiles[counter] = new WorldPoint(x, y, client.getPlane());
                 counter++;
@@ -393,7 +393,7 @@ public class StateDataPlugin extends Plugin {
                     break;
                 }
             }
-            if (counter >= 26) {
+            if (counter == 26) {
                 break;
             }
         }
