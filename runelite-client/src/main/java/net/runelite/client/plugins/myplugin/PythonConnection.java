@@ -60,12 +60,6 @@ public class PythonConnection extends WebSocketClient {
                 case "camera":
                     plugin.setCameraOrientation();
                     break;
-                case "player":
-                    sendPlayerData(plugin.client, this, new JSONObject());
-                    break;
-                case "environment":
-                    sendEnvironmentData(plugin.client, this, new JSONObject());
-                    break;
                 case "menu_option_coords":
                     if (plugin.isMenuOpened) {
                         sendMenuCoords(this, new JSONObject(), plugin.menuOpened);
@@ -114,30 +108,30 @@ public class PythonConnection extends WebSocketClient {
         this.socket.send(message.toString());
     }
 
-    public static void sendPlayerData(Client client, PythonConnection ws, JSONObject obj) {
+    public static JSONObject getPlayerData(Client client, PythonConnection ws, JSONObject obj) {
         if (obj == null) {
             obj = new JSONObject();
         }
-        obj.put("type", "player");
         obj.put("hitpoints", client.getBoostedSkillLevel(Skill.HITPOINTS));
         obj.put("prayerpoints", client.getBoostedSkillLevel(Skill.PRAYER));
         obj.put("energy", client.getEnergy());
         obj.put("is_interacting", client.getLocalPlayer().isInteracting());
         obj.put("animation", client.getLocalPlayer().getAnimation());
 
-        ws.sendMessage(obj);
+        return obj;
     }
 
-    public static void sendEnvironmentData(Client client, PythonConnection ws, JSONObject obj) {
+    public static JSONObject getEnvironmentData(Client client, JSONObject obj) {
         if (obj == null) {
             obj = new JSONObject();
         }
+        int tick = client.getTickCount();
         WorldPoint lastTickLocation = client.getLocalPlayer().getWorldLocation();
-        obj.put("type", "environment");
         obj.put("location", "(" + lastTickLocation.getX() + ", " + lastTickLocation.getY() + ")");
         obj.put("oneTickTiles", StateDataPlugin.get1TickTilesString(client));
+        obj.put("tick", tick);
 
-        ws.sendMessage(obj);
+        return obj;
     }
 
     public static void sendMenuCoords(PythonConnection ws, JSONObject obj, MenuOpened m) {
@@ -186,7 +180,7 @@ public class PythonConnection extends WebSocketClient {
         return index;
     }
 
-    public void getInventoryItems() {
+    public JSONObject getInventoryItems() {
         ItemContainer inventory = plugin.client.getItemContainer(InventoryID.INVENTORY);
         Item[] items = inventory.getItems();
         Map<Integer, Map<String, Object>> inventoryItems = new HashMap<>();
@@ -232,7 +226,7 @@ public class PythonConnection extends WebSocketClient {
         }
 
         obj2.put("inventory", obj.toString());
-        sendMessage(obj2);
+        return obj;
     }
 
     private void sendMessage(String type, String data) {

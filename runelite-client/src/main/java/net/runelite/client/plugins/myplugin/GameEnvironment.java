@@ -6,7 +6,6 @@ import net.runelite.api.Player;
 import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.Tile;
-import net.runelite.client.game.walking.Reachable;
 
 import javax.swing.plaf.synth.Region;
 import java.util.*;
@@ -59,7 +58,7 @@ public class GameEnvironment {
             List<Integer> row = new ArrayList<>();
             for (int j = 0; j < 64; j++) {
                 WorldPoint location = new WorldPoint(regionX + j, regionY + i, playerLocation.getPlane());
-                boolean isWalkable = Reachable.isWalkable(client, location);
+                boolean isWalkable = false;//Reachable.isWalkable(client, location);
                 NPC npc = client.getNpcs().stream().filter(n -> n.getWorldLocation().equals(location)).findFirst().orElse(null);
                 Player player = client.getPlayers().stream().filter(p -> p.getWorldLocation().equals(location)).findFirst().orElse(null);
                 int objectId = -1;
@@ -91,7 +90,7 @@ public class GameEnvironment {
 				continue;
 			}
 
-			if (Reachable.isWalkable(client, current)) {
+/*			if (Reachable.isWalkable(client, current)) {
 				validLocations[count] = current;
 				count++;
 			}
@@ -100,7 +99,7 @@ public class GameEnvironment {
 				if (visited.add(neighbor)) {
 					queue.addLast(neighbor);
 				}
-			}
+			}*/
 		}
 		StringBuilder sb = new StringBuilder("[");
 		for (int i = 0; i < validLocations.length; i++) {

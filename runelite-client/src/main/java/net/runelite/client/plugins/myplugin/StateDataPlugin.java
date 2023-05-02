@@ -151,12 +151,11 @@ public class StateDataPlugin extends Plugin {
 
     private int counter = 0;
     @Subscribe
-    public void onGameTick(GameTick t) throws IOException, URISyntaxException {
+    public void onPostClientTick(PostClientTick t) throws IOException, URISyntaxException {
         if (client.getGameState() != GameState.LOGGED_IN) {
             lastTickLocation = null;
         } else {
             obj = new JSONObject();
-            int tick = client.getTickCount();
             if (client.getCameraZ() != 433) {
                 clientThread.invokeLater(() -> client.runScript(ScriptID.CAMERA_DO_ZOOM, 433, 433));
             }
@@ -180,11 +179,10 @@ public class StateDataPlugin extends Plugin {
                         counter++;
                     }
                     findTreeTiles();
-                    PythonConnection.sendPlayerData(client, state, new JSONObject());
-                    state.sendEnvironmentData(client, state, new JSONObject());
-                    getTileLocation();
-                    state.getInventoryItems();
-                    obj.put("tick", tick);
+                    obj.put("player", PythonConnection.getPlayerData(client, state, new JSONObject()).toString());
+                    obj.put("environment", state.getEnvironmentData(client, new JSONObject()).toString());
+                    //getTileLocation();
+                    obj.put("inventory", state.getInventoryItems().toString());
                     state.send(obj.toString());
                 } catch (WebsocketNotConnectedException e) {
                     System.err.println("WebSocket not connected: " + e.getMessage());
