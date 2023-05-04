@@ -71,6 +71,7 @@ public class StateDataPlugin extends Plugin {
     private GameEnvironment ga;
     private int currentPlane;
     private JSONObject obj;
+    private boolean xpInitiated;
 
     private static WidgetItem getWidgetItem(Widget parentWidget, int idx) {
         assert parentWidget.isIf3();
@@ -103,6 +104,7 @@ public class StateDataPlugin extends Plugin {
         log.info("Example started!");
         ga = new GameEnvironment(client);
         isMenuOpened = false;
+        xpInitiated = false;
 
 
         props = new Properties();
@@ -129,6 +131,18 @@ public class StateDataPlugin extends Plugin {
 
         clientToolbar.addNavigation(navButton);
         //previousInventory = client.getItemContainer(InventoryID.INVENTORY);
+        if (state.isConnected()) {
+            JSONObject obj = new JSONObject();
+            int woodcuttingXP = client.getSkillExperience(Skill.WOODCUTTING);
+            int firemakingXP = client.getSkillExperience(Skill.FIREMAKING);
+            int[] totalSkillXP = client.getSkillExperiences();
+            int totalXP = 0;
+            for (int i = 0; i < totalSkillXP.length; i++) {
+                totalXP += totalSkillXP[i];
+            }
+            obj.put("total_xp", String.valueOf(totalXP));
+            state.send(obj.toString());
+        }
     }
 
     @Override
@@ -259,6 +273,14 @@ public class StateDataPlugin extends Plugin {
                 treeObjects.remove(event.getGameObject());
             }
         }
+    }
+
+    @Subscribe
+    public void onStatChanged(StatChanged statChanged) {
+        final Skill skill = statChanged.getSkill();
+        final int currentXp = statChanged.getXp();
+        final int currentLevel = statChanged.getLevel();
+
     }
 
     public Map<String, List<Double>> findTreeTiles() {
