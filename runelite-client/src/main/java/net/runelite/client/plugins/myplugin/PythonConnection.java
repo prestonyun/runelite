@@ -103,7 +103,7 @@ public class PythonConnection extends WebSocketClient {
         System.err.println("An error occurred: " + e.getMessage());
     }
 
-    private void sendMessage(JSONObject message) {
+    public void sendMessage(JSONObject message) {
         System.out.println(message.toString());
         this.socket.send(message.toString());
     }

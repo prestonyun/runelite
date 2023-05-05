@@ -71,7 +71,7 @@ public class StateDataPlugin extends Plugin {
     private GameEnvironment ga;
     private int currentPlane;
     private JSONObject obj;
-    private boolean xpInitiated;
+    private long xpInitiated;
 
     private static WidgetItem getWidgetItem(Widget parentWidget, int idx) {
         assert parentWidget.isIf3();
@@ -104,8 +104,7 @@ public class StateDataPlugin extends Plugin {
         log.info("Example started!");
         ga = new GameEnvironment(client);
         isMenuOpened = false;
-        xpInitiated = false;
-
+        xpInitiated = client.getOverallExperience();
 
         props = new Properties();
         try (InputStream input = new FileInputStream("config.properties")) {
@@ -131,18 +130,7 @@ public class StateDataPlugin extends Plugin {
 
         clientToolbar.addNavigation(navButton);
         //previousInventory = client.getItemContainer(InventoryID.INVENTORY);
-        if (state.isConnected()) {
-            JSONObject obj = new JSONObject();
-            int woodcuttingXP = client.getSkillExperience(Skill.WOODCUTTING);
-            int firemakingXP = client.getSkillExperience(Skill.FIREMAKING);
-            int[] totalSkillXP = client.getSkillExperiences();
-            int totalXP = 0;
-            for (int i = 0; i < totalSkillXP.length; i++) {
-                totalXP += totalSkillXP[i];
-            }
-            obj.put("total_xp", String.valueOf(totalXP));
-            state.send(obj.toString());
-        }
+
     }
 
     @Override
@@ -190,6 +178,7 @@ public class StateDataPlugin extends Plugin {
                 try {
                     if (counter < 1) {
                         findTreeTiles();
+                        state.sendMessage(new JSONObject().put("total_xp", String.valueOf(xpInitiated)));
                         counter++;
                     }
                     findTreeTiles();
@@ -277,10 +266,12 @@ public class StateDataPlugin extends Plugin {
 
     @Subscribe
     public void onStatChanged(StatChanged statChanged) {
-        final Skill skill = statChanged.getSkill();
-        final int currentXp = statChanged.getXp();
-        final int currentLevel = statChanged.getLevel();
+        xpInitiated = client.getOverallExperience();
+        JSONObject obj = new JSONObject();
 
+        obj.put("total_xp", String.valueOf(xpInitiated));
+        System.out.println("Sending total xp: " + obj.toString());
+        state.send(obj.toString());
     }
 
     public Map<String, List<Double>> findTreeTiles() {
