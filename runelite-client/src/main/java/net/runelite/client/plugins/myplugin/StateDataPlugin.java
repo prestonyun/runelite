@@ -211,19 +211,6 @@ public class StateDataPlugin extends Plugin {
         }
     }
 
-    //@Subscribe
-    //public void onInteractingChanged(InteractingChanged interactingChanged) {
-    //if (interactingChanged.getSource() == client.getLocalPlayer()) {
-    //obj = new JSONObject();
-    //obj.put("type", "interaction");
-    //if (interactingChanged.getTarget() != null) {
-    //obj.put("interacting_with", interactingChanged.getTarget());
-    //obj.put("is_interacting", true);
-    //obj.put("is_interacting", false);
-    //ws.send(obj.toString());
-    //}
-    //}
-
     @Subscribe
     public void onAnimationChanged(AnimationChanged animationChanged) {
         if (animationChanged.getActor() == client.getLocalPlayer()) {
@@ -299,6 +286,23 @@ public class StateDataPlugin extends Plugin {
             }
         }
         return regularTreeTiles;
+    }
+
+    public Map<String, List<Double>> findGoblins() {
+        Map<String, List<Double>> goblinTiles = new HashMap<>();
+        java.util.List<NPC> npcs = client.getNpcs();
+        for (int i = 0; i < npcs.size(); i++) {
+            NPC npc = npcs.get(i);
+            if (Objects.equals(npc.getName(), "Goblin")) {
+                Double xCoord = npc.getCanvasTilePoly().getBounds2D().getCenterX();
+                Double yCoord = npc.getCanvasTilePoly().getBounds2D().getCenterY();
+                String key = xCoord + "," + yCoord;
+                if (!goblinTiles.containsKey(key)) {
+                    goblinTiles.put(key, Arrays.asList(xCoord, yCoord));
+                }
+            }
+        }
+        return goblinTiles;
     }
 
     public String getInventoryAsString() {

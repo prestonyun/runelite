@@ -45,11 +45,9 @@ public class PythonConnection extends WebSocketClient {
             String event = obj.get("type").getAsString();
             switch (event) {
                 case "greeting":
-                    System.out.println("received greeting");
                     payloadObject = new JSONObject();
                     payloadObject.put("greeting", "Hello back!");
                     sendMessage(payloadObject);
-                    System.out.println("responded!");
                     break;
                 case "oneTickTiles":
                     //plugin.send1TickTiles(this);
@@ -88,6 +86,22 @@ public class PythonConnection extends WebSocketClient {
                     }
                     treeObject.put("data", treeClickBoxes.toString());
                     sendMessage(treeObject);
+                    break;
+                case "goblins":
+                    Map<String, List<Double>> goblins = plugin.findGoblins();
+                    JSONObject goblinObject = new JSONObject();
+                    goblinObject.put("type", "goblins");
+                    StringBuilder goblinClickBoxes = new StringBuilder();
+                    for (List<Double> clickbox : goblins.values()) {
+                        if (clickbox.get(0) > 0 && clickbox.get(1) > 0) {
+                            goblinClickBoxes.append(String.format("[%f, %f], ", clickbox.get(0), clickbox.get(1)));
+                        }
+                    }
+                    if (goblinClickBoxes.length() > 2) {
+                        goblinClickBoxes.setLength(goblinClickBoxes.length() - 2);
+                    }
+                    goblinObject.put("data", goblinClickBoxes.toString());
+                    sendMessage(goblinObject);
             }
         }
     }
@@ -104,7 +118,7 @@ public class PythonConnection extends WebSocketClient {
     }
 
     public void sendMessage(JSONObject message) {
-        System.out.println(message.toString());
+        System.out.println("sending message: " + message.toString());
         this.socket.send(message.toString());
     }
 
@@ -162,6 +176,7 @@ public class PythonConnection extends WebSocketClient {
         JSONObject obj = new JSONObject();
         obj.put(type, value);
 
+        System.out.println("Sending message: " + obj.toString());
         this.socket.send(obj.toString());
     }
 
