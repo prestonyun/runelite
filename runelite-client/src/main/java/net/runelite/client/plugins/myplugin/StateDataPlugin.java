@@ -177,11 +177,9 @@ public class StateDataPlugin extends Plugin {
             if (state.isConnected()) {
                 try {
                     if (counter < 1) {
-                        findTreeTiles();
                         state.sendMessage(new JSONObject().put("total_xp", String.valueOf(xpInitiated)));
                         counter++;
                     }
-                    findTreeTiles();
                     obj.put("player", PythonConnection.getPlayerData(client, state, new JSONObject()).toString());
                     obj.put("environment", state.getEnvironmentData(client, new JSONObject()).toString());
                     //getTileLocation();
@@ -259,6 +257,12 @@ public class StateDataPlugin extends Plugin {
         obj.put("total_xp", String.valueOf(xpInitiated));
         System.out.println("Sending total xp: " + obj.toString());
         state.send(obj.toString());
+    }
+
+    @Subscribe
+    public void onMenuOptionClicked(MenuOptionClicked clicked) {
+        JSONObject obj = new JSONObject();
+        obj.put("menu_option", clicked.getMenuOption());
     }
 
     public Map<String, List<Double>> findTreeTiles() {
