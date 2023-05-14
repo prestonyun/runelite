@@ -53,6 +53,9 @@ public class MyStatusSocketPlugin extends Plugin
 
     private MyStatusSocketClient slc;
     private int lastTickAttacked; // last tick the client player attacked
+    public int MAX_DISTANCE = 1200;
+    public long currentTime;
+    public String msg;
 
     @Provides
     MyStatusSocketConfig provideConfig(final ConfigManager configManager)
@@ -63,6 +66,7 @@ public class MyStatusSocketPlugin extends Plugin
     @Override
     protected void startUp()
     {
+
         slc = new MyStatusSocketClient(client, itemManager, config, okClient);
     }
 
@@ -159,6 +163,7 @@ public class MyStatusSocketPlugin extends Plugin
     @Subscribe
     public void onGameTick(GameTick event)
     {
+        currentTime = System.currentTimeMillis();
         Player player = client.getLocalPlayer();
 
         if (player == null)
