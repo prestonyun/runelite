@@ -1,5 +1,6 @@
 package net.runelite.client.plugins.mymorgclient;
 
+import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.events.ChatMessage;
 import com.google.inject.Provides;
 import net.runelite.api.events.GameTick;
@@ -8,6 +9,8 @@ import com.google.gson.JsonObject;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
+
+import java.awt.*;
 import java.io.*;
 import java.net.InetSocketAddress;
 import java.time.Duration;
@@ -18,6 +21,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.*;
+import net.runelite.api.events.VarbitChanged;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
@@ -105,6 +109,7 @@ public class HttpServerPlugin extends Plugin
         currentTime = System.currentTimeMillis();
         xpTracker.update();
         int skill_count = 0;
+        //System.out.println("run: " + String.valueOf(client.getVarpValue(173)));
         for (Skill skill : Skill.values())
         {
             if (skill == Skill.OVERALL)
@@ -145,6 +150,8 @@ public class HttpServerPlugin extends Plugin
                     JsonObject tile = new JsonObject();
                     tile.addProperty("coordinate", String.format("(%d, %d)", sceneX, sceneY));
                     tile.addProperty("collisionData", collisionData[localX][localY]);
+                    int[] clickbox = getTileClickbox(client, new LocalPoint(sceneX, sceneY));
+                    tile.addProperty("clickbox", String.format("(%d, %d, %d, %d)", clickbox[0], clickbox[1], clickbox[2], clickbox[3]));
                     tiles.add(tile);
                 }
             }
@@ -245,6 +252,7 @@ public class HttpServerPlugin extends Plugin
         JsonObject worldPoint = new JsonObject();
         JsonObject mouse = new JsonObject();
         object.addProperty("animation", player.getAnimation());
+        object.addProperty("run enabled", client.getVarpValue(173));
         object.addProperty("animation pose", player.getPoseAnimation());
         object.addProperty("latest msg", msg);
         object.addProperty("run energy", client.getEnergy());
@@ -333,4 +341,24 @@ public class HttpServerPlugin extends Plugin
             throw new RuntimeException(e);
         }
     }
+
+    private static int[] getTileClickbox(Client client, LocalPoint tile) {
+        Polygon poly = Perspective.getCanvasTilePoly(client, tile);
+        if (poly == null || poly.npoints == 0) {
+            return null; // Return null to indicate failure
+        }
+
+        Rectangle bounds = poly.getBounds();
+        int[] result = new int[4];
+        int minX = bounds.x;
+        int maxX = bounds.x + bounds.width;
+        int minY = bounds.y;
+        int maxY = bounds.y + bounds.height;
+        result[0] = minX;
+        result[1] = maxX;
+        result[2] = minY;
+        result[3] = maxY;
+        return result;
+    }
+
 }
