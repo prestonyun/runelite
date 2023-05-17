@@ -72,7 +72,7 @@ public class HttpServerPlugin extends Plugin
         server.createContext("/inv", handlerForInv(InventoryID.INVENTORY));
         server.createContext("/equip", handlerForInv(InventoryID.EQUIPMENT));
         server.createContext("/events", this::handleEvents);
-        server.createContext("/pathing", this::handlerPathing);
+        server.createContext("/pathing", this::handlePathing);
         server.setExecutor(Executors.newSingleThreadExecutor());
         startTime = System.currentTimeMillis();
         xp_gained_skills = new int[Skill.values().length];
@@ -131,12 +131,8 @@ public class HttpServerPlugin extends Plugin
         return xpGained;
     }
 
-    private void handlerPathing(HttpExchange exchange) throws IOException {
-            int[][] collisionData = invokeAndWait(() -> client.getCollisionMaps()[client.getPlane()].getFlags());
-            if (collisionData == null) {
-                exchange.sendResponseHeaders(204, 0);
-                return;
-            }
+    public void handlePathing(HttpExchange exchange) throws IOException {
+            int[][] collisionData = client.getCollisionMaps()[client.getPlane()].getFlags();
 
             int baseX = client.getBaseX();
             int baseY = client.getBaseY();
@@ -150,8 +146,10 @@ public class HttpServerPlugin extends Plugin
                     tile.addProperty("coordinate", String.format("(%d, %d)", sceneX, sceneY));
                     tile.addProperty("collisionData", collisionData[localX][localY]);
                     int[] clickbox = getTileClickbox(client, new LocalPoint(sceneX, sceneY));
-                    tile.addProperty("clickbox", String.format("(%d, %d, %d, %d)", clickbox[0], clickbox[1], clickbox[2], clickbox[3]));
-                    tiles.add(tile);
+                    if (clickbox != null) {
+                        tile.addProperty("clickbox", String.format("(%d, %d, %d, %d)", clickbox[0], clickbox[1], clickbox[2], clickbox[3]));
+                        tiles.add(tile);
+                    }
                 }
             }
 
@@ -358,5 +356,6 @@ public class HttpServerPlugin extends Plugin
         result[3] = maxY;
         return result;
     }
+
 
 }
