@@ -72,7 +72,7 @@ public class HttpServerPlugin extends Plugin
         server.createContext("/inv", handlerForInv(InventoryID.INVENTORY));
         server.createContext("/equip", handlerForInv(InventoryID.EQUIPMENT));
         server.createContext("/events", this::handleEvents);
-        server.createContext("/pathing", handlePathing());
+        server.createContext("/pathing", this::handlerPathing);
         server.setExecutor(Executors.newSingleThreadExecutor());
         startTime = System.currentTimeMillis();
         xp_gained_skills = new int[Skill.values().length];
@@ -131,8 +131,7 @@ public class HttpServerPlugin extends Plugin
         return xpGained;
     }
 
-    private HttpHandler handlePathing() {
-        return exchange -> {
+    private void handlerPathing(HttpExchange exchange) throws IOException {
             int[][] collisionData = invokeAndWait(() -> client.getCollisionMaps()[client.getPlane()].getFlags());
             if (collisionData == null) {
                 exchange.sendResponseHeaders(204, 0);
@@ -161,7 +160,6 @@ public class HttpServerPlugin extends Plugin
                 RuneLiteAPI.GSON.toJson(tiles, out);
             }
         };
-    }
 
 
     public void handleStats(HttpExchange exchange) throws IOException
