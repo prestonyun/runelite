@@ -148,8 +148,11 @@ public class HttpServerPlugin extends Plugin
                     int[] clickbox = getTileClickbox(client, new LocalPoint(sceneX, sceneY));
                     if (clickbox != null) {
                         tile.addProperty("clickbox", String.format("(%d, %d, %d, %d)", clickbox[0], clickbox[1], clickbox[2], clickbox[3]));
-                        tiles.add(tile);
                     }
+                    else {
+                        tile.addProperty("clickbox", "-1, -1");
+                    }
+                    tiles.add(tile);
                 }
             }
 
