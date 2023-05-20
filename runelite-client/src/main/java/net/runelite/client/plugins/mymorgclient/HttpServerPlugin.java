@@ -1,5 +1,6 @@
 package net.runelite.client.plugins.mymorgclient;
 
+import net.runelite.api.Point;
 import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.events.ChatMessage;
 import com.google.inject.Provides;
@@ -108,6 +109,9 @@ public class HttpServerPlugin extends Plugin
     {
         currentTime = System.currentTimeMillis();
         xpTracker.update();
+        if (client.getCameraZ() != 433) {
+            clientThread.invokeLater(() -> client.runScript(ScriptID.CAMERA_DO_ZOOM, 433, 433));
+        }
         int skill_count = 0;
         //System.out.println("run: " + String.valueOf(client.getVarpValue(173)));
         for (Skill skill : Skill.values())
@@ -133,6 +137,7 @@ public class HttpServerPlugin extends Plugin
 
     public void handlePathing(HttpExchange exchange) throws IOException {
             int[][] collisionData = client.getCollisionMaps()[client.getPlane()].getFlags();
+            Tile[][] ts = client.getScene().getTiles()[client.getPlane()];
 
             int baseX = client.getBaseX();
             int baseY = client.getBaseY();
@@ -145,9 +150,12 @@ public class HttpServerPlugin extends Plugin
                     JsonObject tile = new JsonObject();
                     tile.addProperty("coordinate", String.format("(%d, %d)", sceneX, sceneY));
                     tile.addProperty("collisionData", collisionData[localX][localY]);
-                    int[] clickbox = getTileClickbox(client, new LocalPoint(sceneX, sceneY));
+                    double[] clickbox = null;
+
+                    clickbox = getTileClickbox(client, ts[localX][localY]);
+
                     if (clickbox != null) {
-                        tile.addProperty("clickbox", String.format("(%d, %d, %d, %d)", clickbox[0], clickbox[1], clickbox[2], clickbox[3]));
+                        tile.addProperty("clickbox", String.format("(%f, %f, %f, %f)", clickbox[0], clickbox[1], clickbox[2], clickbox[3]));
                     }
                     else {
                         tile.addProperty("clickbox", "-1, -1");
@@ -341,22 +349,27 @@ public class HttpServerPlugin extends Plugin
         }
     }
 
-    private static int[] getTileClickbox(Client client, LocalPoint tile) {
-        Polygon poly = Perspective.getCanvasTilePoly(client, tile);
-        if (poly == null || poly.npoints == 0) {
-            return null; // Return null to indicate failure
+    private static double[] getTileClickbox(Client client, Tile tile)
+    {
+        LocalPoint l = tile.getLocalLocation();
+        Polygon p = Perspective.getCanvasTilePoly(client, l);
+        if (p == null) {
+            return null;
         }
+        if (p.npoints == 0) {
+            return null;
+        }
+        double[] result = new double[4];
+        result[0] = p.getBounds2D().getMinX();
+        result[1] = p.getBounds2D().getMinY();
+        result[2] = p.getBounds2D().getWidth();
+        result[3] = p.getBounds2D().getHeight();
 
-        Rectangle bounds = poly.getBounds();
-        int[] result = new int[4];
-        int minX = bounds.x;
-        int maxX = bounds.x + bounds.width;
-        int minY = bounds.y;
-        int maxY = bounds.y + bounds.height;
-        result[0] = minX;
-        result[1] = maxX;
-        result[2] = minY;
-        result[3] = maxY;
+        for (int i = 0; i < result.length; i++)
+        {
+            if (result[i] < 0)
+                return null;
+        }
         return result;
     }
 
