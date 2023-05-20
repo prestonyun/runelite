@@ -1,7 +1,9 @@
 package net.runelite.client.plugins.mymorgclient;
 
+import com.google.gson.JsonParser;
 import net.runelite.api.Point;
 import net.runelite.api.coords.LocalPoint;
+import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.ChatMessage;
 import com.google.inject.Provides;
 import net.runelite.api.events.GameTick;
@@ -15,10 +17,12 @@ import java.awt.*;
 import java.io.*;
 import java.net.InetSocketAddress;
 import java.time.Duration;
+import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.zip.GZIPInputStream;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.*;
@@ -26,8 +30,12 @@ import net.runelite.api.events.VarbitChanged;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.game.CollisionMap;
+import net.runelite.client.game.walking.GlobalCollisionMap;
+import net.runelite.client.game.walking.Pathfinder;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.mywebsocket.MyPythonConnection;
 import net.runelite.http.api.RuneLiteAPI;
 
 @PluginDescriptor(
@@ -74,6 +82,9 @@ public class HttpServerPlugin extends Plugin
         server.createContext("/equip", handlerForInv(InventoryID.EQUIPMENT));
         server.createContext("/events", this::handleEvents);
         server.createContext("/pathing", this::handlePathing);
+        server.createContext("/path", exchange -> {
+            findPath(exchange);
+        });
         server.setExecutor(Executors.newSingleThreadExecutor());
         startTime = System.currentTimeMillis();
         xp_gained_skills = new int[Skill.values().length];
@@ -373,5 +384,62 @@ public class HttpServerPlugin extends Plugin
         return result;
     }
 
+    public void findPath(HttpExchange exchange) throws IOException {
+        InputStream requestBody = exchange.getRequestBody();
+        InputStreamReader isr = new InputStreamReader(requestBody);
+        BufferedReader br = new BufferedReader(isr);
+        StringBuilder requestBodyBuilder = new StringBuilder();
+        String line;
+        while ((line = br.readLine()) != null) {
+            requestBodyBuilder.append(line);
+        }
+        System.out.println(requestBodyBuilder.toString());
+        br.close();
+        isr.close();
+        requestBody.close();
 
+        String requestBodyData = requestBodyBuilder.toString();
+        System.out.println(requestBodyData);
+        JsonObject requestData = new JsonParser().parse(requestBodyData).getAsJsonObject();
+        System.out.println(requestData.toString());
+
+        int startX = requestData.get("startX").getAsInt();
+        int startY = requestData.get("startY").getAsInt();
+        int endX = requestData.get("endX").getAsInt();
+        int endY = requestData.get("endY").getAsInt();
+        CollisionMap collisionMap ;
+        WorldPoint start = new WorldPoint(startX, startY, client.getPlane());
+        WorldPoint end = new WorldPoint(endX, endY, client.getPlane());
+        try {
+            BufferedInputStream input = new BufferedInputStream(HttpServerPlugin.class.getResourceAsStream("regions"));
+            try { GZIPInputStream gzip = new GZIPInputStream(input);
+                try { collisionMap = new GlobalCollisionMap(gzip.readAllBytes());
+                    gzip.close();
+                    input.close();} catch (Throwable throwable) { try { gzip.close(); } catch (Throwable throwable1) { throwable.addSuppressed(throwable1); }  throw throwable; }  } catch (Throwable throwable) { try { input.close(); } catch (Throwable throwable1) { throwable.addSuppressed(throwable1); }  throw throwable; }
+        } catch (IOException e) {
+            System.out.println("Failed to load regions");
+            throw new RuntimeException(e);
+        }
+
+        Pathfinder pathfinder = new Pathfinder(collisionMap, start, end);
+        List<WorldPoint> path = pathfinder.find();
+        StringBuilder stringBuilder = new StringBuilder();
+        stringBuilder.append("[");
+        for (WorldPoint point : path) {
+            int x = point.getX();
+            int y = point.getY();
+            stringBuilder.append("WorldPoint.from_tuple((").append(x).append(", ").append(y).append(")), ");
+        }
+        // Remove the trailing comma and space from the last element
+        if (!path.isEmpty()) {
+            stringBuilder.setLength(stringBuilder.length() - 2);
+        }
+        stringBuilder.append("]");
+
+        exchange.sendResponseHeaders(200, 0);
+        try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
+            out.write(stringBuilder.toString());
+        }
+    }
 }
+
