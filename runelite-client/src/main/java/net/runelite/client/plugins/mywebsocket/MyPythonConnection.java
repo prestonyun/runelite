@@ -95,7 +95,7 @@ public class MyPythonConnection extends WebSocketClient {
             throw new RuntimeException(e);
         }
 
-        Pathfinder pathfinder = new Pathfinder(collisionMap, start, end);
+        Pathfinder pathfinder = new Pathfinder(collisionMap, client, start, end);
         List<WorldPoint> path = pathfinder.find();
         StringBuilder stringBuilder = new StringBuilder();
         stringBuilder.append("[");

@@ -1,10 +1,11 @@
 package net.runelite.client.game.walking;
 
+import net.runelite.api.Client;
+import net.runelite.api.coords.Direction;
 import net.runelite.client.game.CollisionMap;
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.LinkedList;
-import java.util.List;
+
+import java.util.*;
+
 import net.runelite.api.coords.WorldPoint;
 
 public class Pathfinder {
@@ -17,11 +18,13 @@ public class Pathfinder {
     private final Deque<WorldPoint> boundary = new ArrayDeque<>();
 
     private final CoordMap predecessors = new CoordMap();
+    private final Client client;
 
-    public Pathfinder(CollisionMap map, WorldPoint start, WorldPoint target) {
+    public Pathfinder(CollisionMap map, Client client, WorldPoint start, WorldPoint target) {
         this.collisionMap = map;
         this.startCoords = start;
         this.destination = target;
+        this.client = client;
     }
 
     public List<WorldPoint> find() {
@@ -44,6 +47,42 @@ public class Pathfinder {
         }
         System.out.println("boundary is empty");
         return null;
+    }
+
+    public List<WorldPoint> findAllReachableTiles() {
+        Deque<WorldPoint> boundary = new ArrayDeque<>();
+        CoordMap predecessors = new CoordMap();
+        boundary.add(this.startCoords);
+        predecessors.put(this.startCoords, null);
+        List<WorldPoint> reachableTiles = new ArrayList<>();
+
+        while (!boundary.isEmpty()) {
+            WorldPoint node = boundary.removeFirst();
+            reachableTiles.add(node); // Add node to reachable tiles
+            List<Object> r = addNeighbors(node, predecessors, boundary);
+            predecessors = (CoordMap) r.get(0);
+            boundary = (Deque<WorldPoint>) r.get(1);
+        }
+
+        return reachableTiles;
+    }
+
+
+    private List<Object> addNeighbors(WorldPoint node, CoordMap predecessors, Deque<WorldPoint> boundary) {
+        for (Direction direction : Direction.values()) {
+            WorldPoint neighbor = Reachable.getNeighbour(direction, node);
+            int startFlag = Reachable.getCollisionFlag(this.client, node);
+            int endFlag = Reachable.getCollisionFlag(this.client, neighbor);
+
+            if (Reachable.canWalk(direction, startFlag, endFlag) && !predecessors.containsKey(neighbor)) {
+                predecessors.put(neighbor, node);
+                boundary.add(neighbor);
+            }
+        }
+        List<Object> result = new ArrayList<>();
+        result.add(predecessors);
+        result.add(boundary);
+        return result;
     }
 
     private void addNeighbours(WorldPoint position) {

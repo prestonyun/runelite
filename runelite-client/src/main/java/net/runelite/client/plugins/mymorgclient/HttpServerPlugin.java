@@ -90,6 +90,7 @@ public class HttpServerPlugin extends Plugin {
         server.createContext("/clickbox", exchange -> {
             getClickbox(exchange);
         });
+        server.createContext("/reachable", this::getAllReachableTiles);
 
         server.setExecutor(Executors.newSingleThreadExecutor());
         startTime = System.currentTimeMillis();
@@ -462,18 +463,13 @@ public class HttpServerPlugin extends Plugin {
         int startY = (int) requestData.get("startY");
         int endX = (int) requestData.get("targetX");
         int endY = (int) requestData.get("targetY");
-        System.out.println("initialized points");
-        CollisionMap collisionMap = null;
         WorldPoint start = new WorldPoint(startX, startY, client.getPlane());
         WorldPoint end = new WorldPoint(endX, endY, client.getPlane());
-        System.out.println("initialized worldpoints");
-
-        //GlobalCollisionMap globalCollisionMap = new GlobalCollisionMap(client);
         LocalCollisionMap localCollisionMap = new LocalCollisionMap(client);
         System.out.println("initialized collisionmap");
         Pathfinder pathfinder = null;
         try {
-            pathfinder = new Pathfinder(localCollisionMap, start, end);
+            pathfinder = new Pathfinder(localCollisionMap, this.client, start, end);
         } catch (Throwable t) {
             t.printStackTrace();
             exchange.sendResponseHeaders(400, 0); // Bad Request status code
@@ -483,7 +479,6 @@ public class HttpServerPlugin extends Plugin {
         }
 
         List<WorldPoint> path = pathfinder.find();
-        //System.out.println(path.toString());
         if (path == null) {
             System.out.println("Failed to create pathfinder");
             exchange.sendResponseHeaders(200, 0);
@@ -510,6 +505,34 @@ public class HttpServerPlugin extends Plugin {
             }
         }
 
+    }
+
+    public void getAllReachableTiles(HttpExchange exchange) throws IOException {
+        WorldPoint pos = client.getLocalPlayer().getWorldLocation();
+        Pathfinder p = new Pathfinder(new LocalCollisionMap(client), client, client.getLocalPlayer().getWorldLocation(), pos);
+        List<WorldPoint> reachableTiles = p.findAllReachableTiles();
+        StringBuilder stringBuilder = new StringBuilder();
+        stringBuilder.append("[");
+        for (WorldPoint point : reachableTiles) {
+            int x = point.getX();
+            int y = point.getY();
+            int difX = Math.abs(pos.getX() - x);
+            int difY = Math.abs(pos.getY() - y);
+            if (difX < 20 && difY < 20)
+            {
+                stringBuilder.append("(").append(x).append(", ").append(y).append("), ");
+            }
+
+        }
+        // Remove the trailing comma and space from the last element
+        if (!reachableTiles.isEmpty()) {
+            stringBuilder.setLength(stringBuilder.length() - 2);
+        }
+        stringBuilder.append("]");
+        exchange.sendResponseHeaders(200, 0);
+        try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
+            out.write(stringBuilder.toString());
+        }
     }
 
     public void sendRegion() {
