@@ -87,6 +87,10 @@ public class HttpServerPlugin extends Plugin {
         server.createContext("/path", exchange -> {
             findPath(exchange);
         });
+        server.createContext("/clickbox", exchange -> {
+            getClickbox(exchange);
+        });
+
         server.setExecutor(Executors.newSingleThreadExecutor());
         startTime = System.currentTimeMillis();
         xp_gained_skills = new int[Skill.values().length];
@@ -365,6 +369,65 @@ public class HttpServerPlugin extends Plugin {
         return result;
     }
 
+    private static double[] getTileClickbox(Client client, LocalPoint tile) {
+        Polygon p = Perspective.getCanvasTilePoly(client, tile);
+        if (p == null) {
+            return null;
+        }
+        if (p.npoints == 0) {
+            return null;
+        }
+        double[] result = new double[4];
+        result[0] = p.getBounds2D().getMinX();
+        result[1] = p.getBounds2D().getMinY();
+        result[2] = p.getBounds2D().getWidth();
+        result[3] = p.getBounds2D().getHeight();
+
+        for (int i = 0; i < result.length; i++) {
+            if (result[i] < 0)
+                return null;
+        }
+        return result;
+    }
+
+    public void getClickbox(HttpExchange exchange) throws IOException {
+        InputStream requestBody = exchange.getRequestBody();
+        InputStreamReader isr = new InputStreamReader(requestBody);
+        BufferedReader br = new BufferedReader(isr);
+        StringBuilder requestBodyBuilder = new StringBuilder();
+        String line;
+        while ((line = br.readLine()) != null) {
+            requestBodyBuilder.append(line);
+        }
+        System.out.println(requestBodyBuilder.toString());
+        System.out.println(requestBodyBuilder.charAt(1));
+        br.close();
+        isr.close();
+        requestBody.close();
+        JSONObject requestData = null;
+        try {
+            String s = requestBodyBuilder.toString();
+            s = s.substring(1, s.length() - 1).replace("\\", "");
+            requestData = new JSONObject(s); // parse request body as json
+            System.out.println(requestData.toString());
+        } catch (Throwable e) {
+            e.printStackTrace();
+        }
+        int x = (int)requestData.get("x");
+        int y = (int)requestData.get("y");
+        LocalPoint tile = LocalPoint.fromWorld(client, x, y);
+        double[] clickbox = getTileClickbox(client, tile);
+        JsonObject object = new JsonObject();
+        object.addProperty("x", clickbox[0]);
+        object.addProperty("y", clickbox[1]);
+        object.addProperty("width", clickbox[2]);
+        object.addProperty("height", clickbox[3]);
+        exchange.sendResponseHeaders(200, 0);
+        try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
+            RuneLiteAPI.GSON.toJson(object, out);
+        }
+    }
+
     public void findPath(HttpExchange exchange) throws IOException {
         InputStream requestBody = exchange.getRequestBody();
         InputStreamReader isr = new InputStreamReader(requestBody);
@@ -397,24 +460,13 @@ public class HttpServerPlugin extends Plugin {
         System.out.println("parsed json");
         int startX = (int) requestData.get("startX");
         int startY = (int) requestData.get("startY");
-        int endX = (int) requestData.get("endX");
-        int endY = (int) requestData.get("endY");
+        int endX = (int) requestData.get("targetX");
+        int endY = (int) requestData.get("targetY");
         System.out.println("initialized points");
         CollisionMap collisionMap = null;
         WorldPoint start = new WorldPoint(startX, startY, client.getPlane());
         WorldPoint end = new WorldPoint(endX, endY, client.getPlane());
         System.out.println("initialized worldpoints");
-
-        int[] regions = client.getMapRegions();
-
-        for (int i = 0; i < regions.length; i++) {
-            Player localPlayer = client.getLocalPlayer();
-            WorldPoint localWorldPoint = localPlayer.getWorldLocation();
-            int plane = client.getPlane();
-            int regionID = localWorldPoint.getRegionID();
-            int region = regions[i];
-
-        }
 
         //GlobalCollisionMap globalCollisionMap = new GlobalCollisionMap(client);
         LocalCollisionMap localCollisionMap = new LocalCollisionMap(client);
@@ -444,7 +496,7 @@ public class HttpServerPlugin extends Plugin {
             for (WorldPoint point : path) {
                 int x = point.getX();
                 int y = point.getY();
-                stringBuilder.append("WorldPoint.from_tuple((").append(x).append(", ").append(y).append(")), ");
+                stringBuilder.append("(").append(x).append(", ").append(y).append("), ");
             }
             // Remove the trailing comma and space from the last element
             if (!path.isEmpty()) {
