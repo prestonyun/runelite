@@ -370,6 +370,34 @@ public class HttpServerPlugin extends Plugin {
         return result;
     }
 
+    private static double[] getTileClickbox(Client client, LocalPoint tile, Boolean adjusted) {
+        Polygon p = Perspective.getCanvasTilePoly(client, tile);
+        if (p == null) {
+            return null;
+        }
+        if (p.npoints == 0) {
+            return null;
+        }
+        double[] result = new double[4];
+        result[0] = p.getBounds2D().getMinX();
+        result[1] = p.getBounds2D().getMinY();
+        result[2] = p.getBounds2D().getWidth();
+        result[3] = p.getBounds2D().getHeight();
+
+        int anim = client.getLocalPlayer().getPoseAnimation();
+        WorldPoint pos = client.getLocalPlayer().getWorldLocation();
+        LocalPoint posl = LocalPoint.fromWorld(client, pos.getX(), pos.getY());
+        int dx = tile.getX() - posl.getX();
+        int dy = tile.getY() - posl.getY();
+
+
+        for (int i = 0; i < result.length; i++) {
+            if (result[i] < 0)
+                return null;
+        }
+        return result;
+    }
+
     private static double[] getTileClickbox(Client client, LocalPoint tile) {
         Polygon p = Perspective.getCanvasTilePoly(client, tile);
         if (p == null) {
