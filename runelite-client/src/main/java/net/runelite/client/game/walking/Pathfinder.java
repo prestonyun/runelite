@@ -31,15 +31,12 @@ public class Pathfinder {
         this.boundary.add(this.startCoords);
         this.predecessors.put(this.startCoords, null);
         while (!this.boundary.isEmpty()) {
-            System.out.println("boundary size: " + this.boundary.size());
             WorldPoint node = this.boundary.removeFirst();
             if (node.equals(this.destination)) {
                 List<WorldPoint> result = new LinkedList<>();
                 while (node != null) {
                     result.add(0, node);
                     node = this.predecessors.get(node);
-                    System.out.println("node: " + node);
-                    System.out.println("predecessors: " + this.predecessors);
                 }
                 return result;
             }

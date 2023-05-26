@@ -90,6 +90,9 @@ public class HttpServerPlugin extends Plugin {
         server.createContext("/clickbox", exchange -> {
             getClickbox(exchange);
         });
+        server.createContext("/minimap", exchange -> {
+            getMinimapLocation(exchange);
+        });
         server.createContext("/reachable", this::getAllReachableTiles);
 
         server.setExecutor(Executors.newSingleThreadExecutor());
@@ -387,9 +390,21 @@ public class HttpServerPlugin extends Plugin {
         int anim = client.getLocalPlayer().getPoseAnimation();
         WorldPoint pos = client.getLocalPlayer().getWorldLocation();
         LocalPoint posl = LocalPoint.fromWorld(client, pos.getX(), pos.getY());
-        int dx = tile.getX() - posl.getX();
-        int dy = tile.getY() - posl.getY();
+        double dx = tile.getX() - posl.getX();
+        double dy = tile.getY() - posl.getY();
+        double dy_dx = dy / dx;
+        double mag = Math.sqrt(1 + Math.pow(dy_dx, 2));
 
+        if (anim == 819 || anim == 820 ||anim == 822) {
+            return result;
+        }
+        else if (anim == 824) {
+            double x = result[0];
+            double y = result[1];
+            result[0] = x * (1 / mag);
+            result[1] = y * (dy_dx / mag);
+            return result;
+        }
 
         for (int i = 0; i < result.length; i++) {
             if (result[i] < 0)
@@ -417,6 +432,39 @@ public class HttpServerPlugin extends Plugin {
                 return null;
         }
         return result;
+    }
+
+    public void getMinimapLocation(HttpExchange exchange) throws IOException {
+        InputStream requestBody = exchange.getRequestBody();
+        InputStreamReader isr = new InputStreamReader(requestBody);
+        BufferedReader br = new BufferedReader(isr);
+        StringBuilder requestBodyBuilder = new StringBuilder();
+        String line;
+        while ((line = br.readLine()) != null) {
+            requestBodyBuilder.append(line);
+        }
+        br.close();
+        isr.close();
+        requestBody.close();
+        JSONObject requestData = null;
+        try {
+            String s = requestBodyBuilder.toString();
+            s = s.substring(1, s.length() - 1).replace("\\", "");
+            requestData = new JSONObject(s); // parse request body as json
+        } catch (Throwable e) {
+            e.printStackTrace();
+        }
+        int x = (int) requestData.get("x");
+        int y = (int) requestData.get("y");
+        LocalPoint tile = LocalPoint.fromWorld(client, x, y);
+        Point loc = Perspective.localToMinimap(client, tile);
+        JsonObject obj = new JsonObject();
+        obj.addProperty("x", loc.getX());
+        obj.addProperty("y", loc.getY());
+        exchange.sendResponseHeaders(200, 0);
+        try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
+            RuneLiteAPI.GSON.toJson(obj, out);
+        }
     }
 
     public void getClickbox(HttpExchange exchange) throws IOException {
@@ -466,12 +514,9 @@ public class HttpServerPlugin extends Plugin {
         while ((line = br.readLine()) != null) {
             requestBodyBuilder.append(line);
         }
-        System.out.println(requestBodyBuilder.toString());
-        System.out.println(requestBodyBuilder.charAt(1));
         br.close();
         isr.close();
         requestBody.close();
-        System.out.println("closed streams");
         JSONObject requestData = null;
         try {
             String s = requestBodyBuilder.toString();
@@ -507,6 +552,7 @@ public class HttpServerPlugin extends Plugin {
         }
 
         List<WorldPoint> path = pathfinder.find();
+        System.out.println("found path");
         if (path == null) {
             System.out.println("Failed to create pathfinder");
             exchange.sendResponseHeaders(200, 0);
@@ -514,18 +560,21 @@ public class HttpServerPlugin extends Plugin {
                 out.write("[]");
             }
         } else {
+            System.out.println("Path: " + path.toString());
             StringBuilder stringBuilder = new StringBuilder();
             stringBuilder.append("[");
             for (WorldPoint point : path) {
                 int x = point.getX();
                 int y = point.getY();
                 stringBuilder.append("(").append(x).append(", ").append(y).append("), ");
+                System.out.println(stringBuilder);
             }
             // Remove the trailing comma and space from the last element
             if (!path.isEmpty()) {
                 stringBuilder.setLength(stringBuilder.length() - 2);
             }
             stringBuilder.append("]");
+            System.out.println(stringBuilder.toString());
 
             exchange.sendResponseHeaders(200, 0);
             try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
