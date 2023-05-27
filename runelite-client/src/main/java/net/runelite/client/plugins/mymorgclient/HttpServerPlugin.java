@@ -1,7 +1,6 @@
 package net.runelite.client.plugins.mymorgclient;
 
 import com.google.gson.*;
-import com.google.gson.stream.JsonReader;
 import net.runelite.api.Point;
 import net.runelite.api.coords.Direction;
 import net.runelite.api.coords.LocalPoint;
@@ -23,19 +22,15 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.zip.GZIPInputStream;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.*;
-import net.runelite.api.events.VarbitChanged;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
-import net.runelite.client.game.CollisionMap;
 import net.runelite.client.game.walking.*;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
-import net.runelite.client.plugins.mywebsocket.MyPythonConnection;
 import net.runelite.http.api.RuneLiteAPI;
 import org.json.JSONObject;
 
@@ -51,6 +46,8 @@ public class HttpServerPlugin extends Plugin {
     private static final Duration WAIT = Duration.ofSeconds(5);
     @Inject
     public Client client;
+    @Inject
+    public ClientThread clientThread;
     public Skill[] skillList;
     public XpTracker xpTracker;
     public Skill mostRecentSkillGained;
@@ -60,8 +57,6 @@ public class HttpServerPlugin extends Plugin {
     public int[] xp_gained_skills;
     @Inject
     public HttpServerConfig config;
-    @Inject
-    public ClientThread clientThread;
     public HttpServer server;
     public int MAX_DISTANCE = 1200;
     public String msg;
@@ -456,15 +451,28 @@ public class HttpServerPlugin extends Plugin {
         }
         int x = (int) requestData.get("x");
         int y = (int) requestData.get("y");
-        LocalPoint tile = LocalPoint.fromWorld(client, x, y);
-        Point loc = Perspective.localToMinimap(client, tile);
-        JsonObject obj = new JsonObject();
-        obj.addProperty("x", loc.getX());
-        obj.addProperty("y", loc.getY());
-        exchange.sendResponseHeaders(200, 0);
-        try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
-            RuneLiteAPI.GSON.toJson(obj, out);
+        if (this.clientThread != null) {
+            this.clientThread.invoke(() -> {
+                try {
+                    LocalPoint tile = LocalPoint.fromWorld(client, x, y);
+                    System.out.println(tile.toString());
+                    Point loc = Perspective.localToMinimap(client, tile);
+                    System.out.println(loc.toString());
+                    JsonObject obj = new JsonObject();
+                    obj.addProperty("x", loc.getX());
+                    obj.addProperty("y", loc.getY());
+                    exchange.sendResponseHeaders(200, 0);
+                    try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
+                        RuneLiteAPI.GSON.toJson(obj, out);
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            });
         }
+        else {System.out.println("clientThread is null");}
+
+
     }
 
     public void getClickbox(HttpExchange exchange) throws IOException {
