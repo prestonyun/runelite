@@ -1,5 +1,6 @@
 package net.runelite.client.game.walking;
 
+import net.runelite.api.Locatable;
 import net.runelite.api.*;
 
 import java.util.ArrayList;

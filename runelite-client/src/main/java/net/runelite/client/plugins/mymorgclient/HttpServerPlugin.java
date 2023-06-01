@@ -1,6 +1,7 @@
 package net.runelite.client.plugins.mymorgclient;
 
 import com.google.gson.*;
+import lombok.Getter;
 import net.runelite.api.Point;
 import net.runelite.api.coords.Direction;
 import net.runelite.api.coords.LocalPoint;
@@ -63,6 +64,8 @@ public class HttpServerPlugin extends Plugin {
     public String msg;
     private final Set<String> seenRegions = new HashSet<>();
     private int plane = -1;
+    @Getter
+    private final Set<TitheFarmPlant> plants = new HashSet<>();
 
     @Provides
     private HttpServerConfig provideConfig(ConfigManager configManager) {
@@ -76,6 +79,7 @@ public class HttpServerPlugin extends Plugin {
         xpTracker = new XpTracker(this);
         server = HttpServer.create(new InetSocketAddress(8081), 0);
         server.createContext("/stats", this::handleStats);
+        server.createContext("/tithefarm", this::titheFarmEvents);
         server.createContext("/inv", handlerForInv(InventoryID.INVENTORY));
         server.createContext("/equip", handlerForInv(InventoryID.EQUIPMENT));
         server.createContext("/events", this::handleEvents);
@@ -123,6 +127,7 @@ public class HttpServerPlugin extends Plugin {
     @Subscribe
     public void onGameTick(GameTick tick) {
         currentTime = System.currentTimeMillis();
+        plants.removeIf(plant -> plant.getPlantTimeRelative() == 1);
         xpTracker.update();
         Player localPlayer = client.getLocalPlayer();
         if (localPlayer == null) {
@@ -154,9 +159,60 @@ public class HttpServerPlugin extends Plugin {
     @Subscribe
     public void onGameObjectSpawned(GameObjectSpawned event) {
         GameObject gameObject = event.getGameObject();
-        if (gameObject.getId() == 29316) {
-            System.out.println("Found a bank booth");
+        TitheFarmPlantType type = TitheFarmPlantType.getPlantType(gameObject.getId());
+        if (type == null)
+        {
+            return;
         }
+
+        TitheFarmPlantState state = TitheFarmPlantState.getState(gameObject.getId());
+
+        TitheFarmPlant newPlant = new TitheFarmPlant(state, type, gameObject);
+        TitheFarmPlant oldPlant = getPlantFromCollection(gameObject);
+
+        if (oldPlant == null && newPlant.getType() != TitheFarmPlantType.EMPTY)
+        {
+            log.debug("Added plant {}", newPlant);
+            plants.add(newPlant);
+        }
+        else if (oldPlant == null)
+        {
+            return;
+        }
+        else if (newPlant.getType() == TitheFarmPlantType.EMPTY)
+        {
+            log.debug("Removed plant {}", oldPlant);
+            plants.remove(oldPlant);
+        }
+        else if (oldPlant.getGameObject().getId() != newPlant.getGameObject().getId())
+        {
+            if (oldPlant.getState() != TitheFarmPlantState.WATERED && newPlant.getState() == TitheFarmPlantState.WATERED)
+            {
+                log.debug("Updated plant (watered)");
+                newPlant.setPlanted(oldPlant.getPlanted());
+                plants.remove(oldPlant);
+                plants.add(newPlant);
+            }
+            else
+            {
+                log.debug("Updated plant");
+                plants.remove(oldPlant);
+                plants.add(newPlant);
+            }
+        }
+    }
+
+    private TitheFarmPlant getPlantFromCollection(GameObject gameObject)
+    {
+        WorldPoint gameObjectLocation = gameObject.getWorldLocation();
+        for (TitheFarmPlant plant : plants)
+        {
+            if (gameObjectLocation.equals(plant.getWorldLocation()))
+            {
+                return plant;
+            }
+        }
+        return null;
     }
 
     public int handleTracker(Skill skill) {
@@ -201,8 +257,6 @@ public class HttpServerPlugin extends Plugin {
     }
 
     ;
-
-
     public void handleStats(HttpExchange exchange) throws IOException {
         Player player = client.getLocalPlayer();
         JsonArray skills = new JsonArray();
@@ -232,7 +286,18 @@ public class HttpServerPlugin extends Plugin {
     }
 
     public void titheFarmEvents(HttpExchange exchange) throws IOException {
-        JsonObject plants = new JsonObject();
+        JsonArray output = new JsonArray();
+        for (TitheFarmPlant plant : getPlants())
+        {
+            JsonObject plantStatus = new JsonObject();
+            plantStatus.addProperty("state", plant.getState().name());
+            plantStatus.addProperty("location", plant.getWorldLocation().toString());
+            output.add(plantStatus);
+        }
+        exchange.sendResponseHeaders(200, 0);
+        try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
+            RuneLiteAPI.GSON.toJson(output, out);
+        }
     }
 
     public void handleEvents(HttpExchange exchange) throws IOException {
