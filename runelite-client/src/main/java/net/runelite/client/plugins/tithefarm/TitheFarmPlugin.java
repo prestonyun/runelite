@@ -57,6 +57,7 @@ public class TitheFarmPlugin extends Plugin
 
 	@Getter
 	private final Set<TitheFarmPlant> plants = new HashSet<>();
+	private int counter = 0;
 
 	@Provides
 	TitheFarmPluginConfig getConfig(ConfigManager configManager)

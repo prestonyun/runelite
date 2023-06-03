@@ -41,13 +41,16 @@ class TitheFarmPlant
 	private Instant planted;
 
 	@Getter
-	private final TitheFarmPlantState state;
+	@Setter
+	private TitheFarmPlantState state;
 
 	@Getter
-	private final TitheFarmPlantType type;
+	@Setter
+	private TitheFarmPlantType type;
 
 	@Getter
-	private final GameObject gameObject;
+	@Setter
+	private GameObject gameObject;
 
 	@Getter
 	private final WorldPoint worldLocation;

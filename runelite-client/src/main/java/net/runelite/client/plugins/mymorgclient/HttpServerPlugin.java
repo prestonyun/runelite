@@ -5,6 +5,7 @@ import lombok.Getter;
 import net.runelite.api.Point;
 import net.runelite.api.coords.Direction;
 import net.runelite.api.coords.LocalPoint;
+import net.runelite.api.coords.WorldArea;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.ChatMessage;
 import com.google.inject.Provides;
@@ -34,6 +35,7 @@ import net.runelite.client.game.walking.*;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.http.api.RuneLiteAPI;
+import org.apache.commons.lang3.tuple.Pair;
 import org.json.JSONObject;
 
 
@@ -50,6 +52,7 @@ public class HttpServerPlugin extends Plugin {
     public Client client;
     @Inject
     public ClientThread clientThread;
+    private int plantCounter;
     public Skill[] skillList;
     public XpTracker xpTracker;
     public Skill mostRecentSkillGained;
@@ -65,8 +68,25 @@ public class HttpServerPlugin extends Plugin {
     private final Set<String> seenRegions = new HashSet<>();
     private int plane = -1;
     @Getter
-    private final Set<TitheFarmPlant> plants = new HashSet<>();
+    private final LinkedHashSet<TitheFarmPlant> plants = new LinkedHashSet<>();
+    @Getter
+    private List<WorldPoint> activeCheckpointWPs;
+    private WorldPoint lastTickWorldLocation;
+    private boolean isRunning;
+    private boolean activePathStartedLastTick;
 
+    private boolean activePathMismatchLastTick;
+
+    private boolean calcTilePathOnNextClientTick;
+    private boolean activePathFound;
+    public Pathmarker pathfinder;
+    private List<WorldArea> npcBlockWAs;
+    @Getter
+    private List<WorldPoint> activePathTiles;
+    @Getter
+    private List<WorldPoint> activeMiddlePathTiles;
+    @Getter
+    private boolean pathActive;
     @Provides
     private HttpServerConfig provideConfig(ConfigManager configManager) {
         return configManager.getConfig(HttpServerConfig.class);
@@ -75,6 +95,14 @@ public class HttpServerPlugin extends Plugin {
     @Override
     protected void startUp() throws Exception {
         //MAX_DISTANCE = config.reachedDistance();
+        plantCounter = 0;
+        activeCheckpointWPs = new ArrayList<>();
+        activePathTiles = new ArrayList<>();
+        activeMiddlePathTiles = new ArrayList<>();
+        pathActive = false;
+        activePathStartedLastTick = false;
+        npcBlockWAs = new ArrayList<>();
+        pathfinder = new Pathmarker(client, this);
         skillList = Skill.values();
         xpTracker = new XpTracker(this);
         server = HttpServer.create(new InetSocketAddress(8081), 0);
@@ -139,8 +167,15 @@ public class HttpServerPlugin extends Plugin {
                 sendRegion();
             }
         }
-        if (client.getCameraZ() != 433) {
-            clientThread.invokeLater(() -> client.runScript(ScriptID.CAMERA_DO_ZOOM, 433, 433));
+        Tile[][] tiles = client.getScene().getTiles()[client.getPlane()];
+        Pair<List<WorldPoint>, Boolean> p = pathfinder.pathTo(tiles[50][50]);
+        List<WorldPoint> path = p.getKey();
+        Boolean pf = p.getValue();
+        for (WorldPoint wp : path) {
+            System.out.println("path: " + wp.toString());
+        }
+        if (client.getCameraZ() != 333) {
+            clientThread.invokeLater(() -> client.runScript(ScriptID.CAMERA_DO_ZOOM, 333, 333));
         }
         int skill_count = 0;
         //System.out.println("run: " + String.valueOf(client.getVarpValue(173)));
@@ -189,15 +224,22 @@ public class HttpServerPlugin extends Plugin {
             if (oldPlant.getState() != TitheFarmPlantState.WATERED && newPlant.getState() == TitheFarmPlantState.WATERED)
             {
                 log.debug("Updated plant (watered)");
+                oldPlant.setState(newPlant.getState());
+                oldPlant.setType(newPlant.getType());
+                oldPlant.setGameObject(newPlant.getGameObject());
                 newPlant.setPlanted(oldPlant.getPlanted());
-                plants.remove(oldPlant);
-                plants.add(newPlant);
+                //plants.remove(oldPlant);
+                //plants.add(newPlant);
             }
             else
             {
                 log.debug("Updated plant");
-                plants.remove(oldPlant);
-                plants.add(newPlant);
+                oldPlant.setState(newPlant.getState());
+                oldPlant.setType(newPlant.getType());
+                oldPlant.setGameObject(newPlant.getGameObject());
+                oldPlant.setPlanted(newPlant.getPlanted());
+                //plants.remove(oldPlant);
+                //plants.add(newPlant);
             }
         }
     }
@@ -291,7 +333,8 @@ public class HttpServerPlugin extends Plugin {
         {
             JsonObject plantStatus = new JsonObject();
             plantStatus.addProperty("state", plant.getState().name());
-            plantStatus.addProperty("location", plant.getWorldLocation().toString());
+            plantStatus.addProperty("x", plant.getWorldLocation().getX());
+            plantStatus.addProperty("y", plant.getWorldLocation().getY());
             output.add(plantStatus);
         }
         exchange.sendResponseHeaders(200, 0);
@@ -791,6 +834,324 @@ public class HttpServerPlugin extends Plugin {
                 }
             }
         } this.seenRegions.add("" + regionID + "-" + regionID);
+    }
+
+    private static Map<Integer, Integer> objectBlocking;
+
+    private static Map<Integer, Integer> npcBlocking;
+
+	/*private final int[][] directions = new int[128][128];
+
+	private final int[][] distances = new int[128][128];
+
+	private final int[] bufferX = new int[4096];
+
+	private final int[] bufferY = new int[4096];*/
+
+    static class PathDestination
+    {
+        private WorldPoint worldPoint;
+        private int sizeX;
+        private int sizeY;
+        private int objConfig;
+        private int objID;
+        private Actor actor;
+
+        public PathDestination(WorldPoint worldPoint, int sizeX, int sizeY, int objConfig, int objID)
+        {
+            this.worldPoint = worldPoint;
+            this.sizeX = sizeX;
+            this.sizeY = sizeY;
+            this.objConfig = objConfig;
+            this.objID = objID;
+            this.actor = null;
+        }
+        public PathDestination(WorldPoint worldPoint, int sizeX, int sizeY, int objConfig, int objID, Actor actor)
+        {
+            this.worldPoint = worldPoint;
+            this.sizeX = sizeX;
+            this.sizeY = sizeY;
+            this.objConfig = objConfig;
+            this.objID = objID;
+            this.actor = actor;
+        }
+    }
+
+    private PathDestination activePathDestination;
+
+    private void updateCheckpointTiles()
+    {
+        if (lastTickWorldLocation == null)
+        {
+            return;
+        }
+        WorldArea currentWA = new WorldArea(lastTickWorldLocation.getX(), lastTickWorldLocation.getY(), 1,1, client.getPlane());
+        if (activeCheckpointWPs == null)
+        {
+            return;
+        }
+        if ((lastTickWorldLocation.getPlane() != activeCheckpointWPs.get(0).getPlane()) && activePathFound)
+        {
+            WorldPoint lastActiveCPTile = activeCheckpointWPs.get(0);
+            activeCheckpointWPs.clear();
+            activeCheckpointWPs.add(lastActiveCPTile);
+            pathActive = false;
+            return;
+        }
+        int cpTileIndex = 0;
+        int steps = 0;
+        while (currentWA.toWorldPoint().getX() != activeCheckpointWPs.get(activeCheckpointWPs.size() - 1).getX()
+                || currentWA.toWorldPoint().getY() != activeCheckpointWPs.get(activeCheckpointWPs.size() - 1).getY())
+        {
+            WorldPoint cpTileWP = activeCheckpointWPs.get(cpTileIndex);
+            if (currentWA.toWorldPoint().equals(cpTileWP))
+            {
+                cpTileIndex += 1;
+                cpTileWP = activeCheckpointWPs.get(cpTileIndex);
+            }
+            int dx = Integer.signum(cpTileWP.getX() - currentWA.getX());
+            int dy = Integer.signum(cpTileWP.getY() - currentWA.getY());
+            WorldArea finalCurrentWA = currentWA;
+            boolean movementCheck = currentWA.canTravelInDirection(client, dx, dy, (worldPoint -> {
+                WorldPoint worldPoint1 = new WorldPoint(finalCurrentWA.getX() + dx, finalCurrentWA.getY(), client.getPlane());
+                WorldPoint worldPoint2 = new WorldPoint(finalCurrentWA.getX(), finalCurrentWA.getY() + dy, client.getPlane());
+                WorldPoint worldPoint3 = new WorldPoint(finalCurrentWA.getX() + dx, finalCurrentWA.getY() + dy, client.getPlane());
+                for (WorldArea worldArea : npcBlockWAs)
+                {
+                    if (worldArea.contains(worldPoint1) || worldArea.contains(worldPoint2) || worldArea.contains(worldPoint3))
+                    {
+                        return false;
+                    }
+                }
+                return true;
+            }));
+            if (movementCheck)
+            {
+                currentWA = new WorldArea(currentWA.getX() + dx, currentWA.getY() + dy, 1, 1, client.getPlane());
+            }
+            else
+            {
+                movementCheck = currentWA.canTravelInDirection(client, dx, 0, (worldPoint -> {
+                    WorldPoint worldPoint1 = new WorldPoint(finalCurrentWA.getX() + dx, finalCurrentWA.getY(), client.getPlane());
+                    for (WorldArea worldArea : npcBlockWAs)
+                    {
+                        if (worldArea.contains(worldPoint1))
+                        {
+                            return false;
+                        }
+                    }
+                    return true;
+                }));
+                if (dx != 0 && movementCheck)
+                {
+                    currentWA = new WorldArea(currentWA.getX() + dx, currentWA.getY(), 1, 1, client.getPlane());
+                }
+                else
+                {
+                    movementCheck = currentWA.canTravelInDirection(client, 0, dy, (worldPoint -> {
+                        WorldPoint worldPoint1 = new WorldPoint(finalCurrentWA.getX(), finalCurrentWA.getY() + dy, client.getPlane());
+                        for (WorldArea worldArea : npcBlockWAs)
+                        {
+                            if (worldArea.contains(worldPoint1))
+                            {
+                                return false;
+                            }
+                        }
+                        return true;
+                    }));
+                    if (dy != 0 && movementCheck)
+                    {
+                        currentWA = new WorldArea(currentWA.getX(), currentWA.getY() + dy, 1, 1, client.getPlane());
+                    }
+                }
+            }
+            steps += 1;
+            if (steps == 2 || !isRunning || !activePathFound)
+            {
+                break;
+            }
+        }
+        if (steps == 0 && pathActive)
+        {
+            WorldPoint lastActiveCPTile = activeCheckpointWPs.get(0);
+            activeCheckpointWPs.clear();
+            activeCheckpointWPs.add(lastActiveCPTile);
+            pathActive = false;
+            activePathDestination.objConfig = -1;
+            activePathMismatchLastTick = true;
+            return;
+        }
+        if (!currentWA.toWorldPoint().equals(client.getLocalPlayer().getWorldLocation()) && pathActive)
+        {
+            if (activePathStartedLastTick)
+            {
+                LocalPoint localPoint = LocalPoint.fromWorld(client, activePathDestination.worldPoint);
+                if (localPoint != null)
+                {
+                    Pair<List<WorldPoint>, Boolean> pathResult = pathfinder.pathTo(localPoint.getSceneX(), localPoint.getSceneY(), activePathDestination.sizeX, activePathDestination.sizeY, activePathDestination.objConfig, activePathDestination.objID);
+                    if (pathResult == null)
+                    {
+                        return;
+                    }
+                    lastTickWorldLocation = client.getLocalPlayer().getWorldLocation();
+                    pathActive = true;
+                    activeCheckpointWPs = pathResult.getLeft();
+                    activePathFound = pathResult.getRight();
+                    pathFromCheckpointTiles(activeCheckpointWPs, isRunning, activeMiddlePathTiles, activePathTiles, activePathFound);
+                    activePathStartedLastTick = false;
+                }
+            }
+            else if (activePathMismatchLastTick)
+            {
+                WorldPoint lastActiveCPTile = activeCheckpointWPs.get(0);
+                activeCheckpointWPs.clear();
+                activeCheckpointWPs.add(lastActiveCPTile);
+                pathActive = false;
+                activePathStartedLastTick = false;
+            }
+            activePathMismatchLastTick = true;
+        }
+        else
+        {
+            activePathMismatchLastTick = false;
+        }
+        for (int i = 0; i < cpTileIndex; i++)
+        {
+            if (activeCheckpointWPs.size()>1)
+            {
+                activeCheckpointWPs.remove(0);
+            }
+        }
+    }
+
+    private void pathFromCheckpointTiles(List<WorldPoint> checkpointWPs, boolean running, List<WorldPoint> middlePathTiles, List<WorldPoint> pathTiles, boolean pathFound)
+    {
+        pathTiles.clear();
+        middlePathTiles.clear();
+        WorldArea currentWA = client.getLocalPlayer().getWorldArea();
+        if (currentWA == null || checkpointWPs == null || checkpointWPs.size() == 0)
+        {
+            return;
+        }
+        if ((currentWA.getPlane() != checkpointWPs.get(0).getPlane()) && pathFound)
+        {
+            return;
+        }
+        boolean runSkip = true;
+        int cpTileIndex = 0;
+        while (currentWA.toWorldPoint().getX() != checkpointWPs.get(checkpointWPs.size() - 1).getX()
+                || currentWA.toWorldPoint().getY() != checkpointWPs.get(checkpointWPs.size() - 1).getY())
+        {
+            WorldPoint cpTileWP = checkpointWPs.get(cpTileIndex);
+            if (currentWA.toWorldPoint().equals(cpTileWP))
+            {
+                cpTileIndex += 1;
+                cpTileWP = checkpointWPs.get(cpTileIndex);
+            }
+            int dx = Integer.signum(cpTileWP.getX() - currentWA.getX());
+            int dy = Integer.signum(cpTileWP.getY() - currentWA.getY());
+            WorldArea finalCurrentWA = currentWA;
+            boolean movementCheck = currentWA.canTravelInDirection(client, dx, dy, (worldPoint -> {
+                WorldPoint worldPoint1 = new WorldPoint(finalCurrentWA.getX() + dx, finalCurrentWA.getY(), client.getPlane());
+                WorldPoint worldPoint2 = new WorldPoint(finalCurrentWA.getX(), finalCurrentWA.getY() + dy, client.getPlane());
+                WorldPoint worldPoint3 = new WorldPoint(finalCurrentWA.getX() + dx, finalCurrentWA.getY() + dy, client.getPlane());
+                for (WorldArea worldArea : npcBlockWAs)
+                {
+                    if (worldArea.contains(worldPoint1) || worldArea.contains(worldPoint2) || worldArea.contains(worldPoint3))
+                    {
+                        return false;
+                    }
+                }
+                return true;
+            }));
+            if (movementCheck)
+            {
+                currentWA = new WorldArea(currentWA.getX() + dx, currentWA.getY() + dy, 1, 1, client.getPlane());
+                if (currentWA.toWorldPoint().equals(checkpointWPs.get(checkpointWPs.size() - 1)) || !pathFound)
+                {
+                    pathTiles.add(currentWA.toWorldPoint());
+                }
+                else if (runSkip && running)
+                {
+                    middlePathTiles.add(currentWA.toWorldPoint());
+                }
+                else
+                {
+                    pathTiles.add(currentWA.toWorldPoint());
+                }
+                runSkip = !runSkip;
+                continue;
+            }
+            movementCheck = currentWA.canTravelInDirection(client, dx, 0, (worldPoint -> {
+                for (WorldArea worldArea : npcBlockWAs)
+                {
+                    WorldPoint worldPoint1 = new WorldPoint(finalCurrentWA.getX() + dx, finalCurrentWA.getY(), client.getPlane());
+                    if (worldArea.contains(worldPoint1))
+                    {
+                        return false;
+                    }
+                }
+                return true;
+            }));
+            if (dx != 0 && movementCheck)
+            {
+                currentWA = new WorldArea(currentWA.getX() + dx, currentWA.getY(), 1, 1, client.getPlane());
+                if (currentWA.toWorldPoint().equals(checkpointWPs.get(checkpointWPs.size() - 1)) || !pathFound)
+                {
+                    pathTiles.add(currentWA.toWorldPoint());
+                }
+                else if (runSkip && running)
+                {
+                    middlePathTiles.add(currentWA.toWorldPoint());
+                }
+                else
+                {
+                    pathTiles.add(currentWA.toWorldPoint());
+                }
+                runSkip = !runSkip;
+                continue;
+            }
+            movementCheck = currentWA.canTravelInDirection(client, 0, dy, (worldPoint -> {
+                for (WorldArea worldArea : npcBlockWAs)
+                {
+                    WorldPoint worldPoint1 = new WorldPoint(finalCurrentWA.getX(), finalCurrentWA.getY() + dy, client.getPlane());
+                    if (worldArea.contains(worldPoint1))
+                    {
+                        return false;
+                    }
+                }
+                return true;
+            }));
+            if (dy != 0 && movementCheck)
+            {
+                currentWA = new WorldArea(currentWA.getX(), currentWA.getY() + dy, 1, 1, client.getPlane());
+                if (currentWA.toWorldPoint().equals(checkpointWPs.get(checkpointWPs.size() - 1)) || !pathFound)
+                {
+                    pathTiles.add(currentWA.toWorldPoint());
+                }
+                else if (runSkip && running)
+                {
+                    middlePathTiles.add(currentWA.toWorldPoint());
+                }
+                else
+                {
+                    pathTiles.add(currentWA.toWorldPoint());
+                }
+                runSkip = !runSkip;
+                continue;
+            }
+            return;
+        }
+    }
+
+    public static int getObjectBlocking(final int objectId, final int rotation)
+    {
+        if (objectBlocking == null)
+        {
+            return 0;
+        }
+        int blockingValue = objectBlocking.getOrDefault(objectId, 0);
+        return rotation == 0 ? blockingValue : (((blockingValue << rotation) & 0xF) + (blockingValue >> (4 - rotation)));
     }
 
     /*
