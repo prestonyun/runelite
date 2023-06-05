@@ -90,6 +90,7 @@ public class HttpServerPlugin extends Plugin {
     @Getter
     private boolean pathActive;
     private WorldPoint lastClickedTile;
+    private WorldPoint hoveredTile;
     @Provides
     private HttpServerConfig provideConfig(ConfigManager configManager) {
         return configManager.getConfig(HttpServerConfig.class);
@@ -98,6 +99,7 @@ public class HttpServerPlugin extends Plugin {
     @Override
     protected void startUp() throws Exception {
         //MAX_DISTANCE = config.reachedDistance();
+        hoveredTile = new WorldPoint(0, 0, 0);
         plantCounter = 0;
         activeCheckpointWPs = new ArrayList<>();
         activePathTiles = new ArrayList<>();
@@ -448,13 +450,7 @@ public class HttpServerPlugin extends Plugin {
             npcHealth2 = 0;
             health = 0;
         }
-        //WorldPoint hoveredTile = client.getSelectedSceneTile().getWorldLocation();
-        //int hoveredX = 0;
-        //int hoveredY = 0;
-        //if (hoveredTile != null) {
-        //    hoveredX = hoveredTile.getX();
-        //    hoveredY = hoveredTile.getY();
-        //}
+        hoveredTile = client.getSelectedSceneTile().getWorldLocation();
         JsonObject object = new JsonObject();
         JsonObject camera = new JsonObject();
         JsonObject worldPoint = new JsonObject();
@@ -472,8 +468,10 @@ public class HttpServerPlugin extends Plugin {
         object.addProperty("MAX_DISTANCE", MAX_DISTANCE);
         mouse.addProperty("x", client.getMouseCanvasPosition().getX());
         mouse.addProperty("y", client.getMouseCanvasPosition().getY());
-        //mouse.addProperty("hoveredX", hoveredX);
-        //mouse.addProperty("hoveredY", hoveredY);
+        if (hoveredTile != null) {
+            mouse.addProperty("hoveredX", hoveredTile.getX());
+            mouse.addProperty("hoveredY", hoveredTile.getY());
+        }
         worldPoint.addProperty("x", player.getWorldLocation().getX());
         worldPoint.addProperty("y", player.getWorldLocation().getY());
         worldPoint.addProperty("plane", player.getWorldLocation().getPlane());
