@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.*;
+import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
@@ -87,6 +88,7 @@ public class HttpServerPlugin extends Plugin {
     private List<WorldPoint> activeMiddlePathTiles;
     @Getter
     private boolean pathActive;
+    private WorldPoint lastClickedTile;
     @Provides
     private HttpServerConfig provideConfig(ConfigManager configManager) {
         return configManager.getConfig(HttpServerConfig.class);
@@ -138,6 +140,10 @@ public class HttpServerPlugin extends Plugin {
     }
 
     @Subscribe
+    public void onMenuOptionClicked(MenuOptionClicked event) {
+        System.out.println(event.getMenuTarget());
+    }
+    @Subscribe
     public void onChatMessage(ChatMessage event) {
         msg = event.getMessage();
         //System.out.println("onChatmsg:" + msg);
@@ -171,9 +177,6 @@ public class HttpServerPlugin extends Plugin {
         Pair<List<WorldPoint>, Boolean> p = pathfinder.pathTo(tiles[50][50]);
         List<WorldPoint> path = p.getKey();
         Boolean pf = p.getValue();
-        for (WorldPoint wp : path) {
-            System.out.println("path: " + wp.toString());
-        }
         if (client.getCameraZ() != 333) {
             clientThread.invokeLater(() -> client.runScript(ScriptID.CAMERA_DO_ZOOM, 333, 333));
         }
@@ -384,6 +387,7 @@ public class HttpServerPlugin extends Plugin {
             npcHealth2 = 0;
             health = 0;
         }
+        WorldPoint hoveredTile = client.getSelectedSceneTile().getWorldLocation();
         JsonObject object = new JsonObject();
         JsonObject camera = new JsonObject();
         JsonObject worldPoint = new JsonObject();
@@ -401,6 +405,8 @@ public class HttpServerPlugin extends Plugin {
         object.addProperty("MAX_DISTANCE", MAX_DISTANCE);
         mouse.addProperty("x", client.getMouseCanvasPosition().getX());
         mouse.addProperty("y", client.getMouseCanvasPosition().getY());
+        mouse.addProperty("hoveredX", hoveredTile.getX());
+        mouse.addProperty("hoveredY", hoveredTile.getY());
         worldPoint.addProperty("x", player.getWorldLocation().getX());
         worldPoint.addProperty("y", player.getWorldLocation().getY());
         worldPoint.addProperty("plane", player.getWorldLocation().getPlane());

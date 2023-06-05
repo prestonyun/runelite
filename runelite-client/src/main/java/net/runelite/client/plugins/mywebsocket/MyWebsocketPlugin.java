@@ -100,4 +100,6 @@ public class MyWebsocketPlugin extends Plugin {
         ws = new MyPythonConnection(new URI("ws://localhost:8765"), new Draft_6455(), this);
         ws.connect();
     }
+
+
 }
