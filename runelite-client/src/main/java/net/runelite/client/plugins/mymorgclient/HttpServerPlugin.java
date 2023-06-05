@@ -117,6 +117,9 @@ public class HttpServerPlugin extends Plugin {
         server.createContext("/equip", handlerForInv(InventoryID.EQUIPMENT));
         server.createContext("/events", this::handleEvents);
         server.createContext("/pathing", this::handlePathing);
+        server.createContext("/objectId", exchange -> {
+            getGameObjectIdHandler(exchange);
+        });
         server.createContext("/path", exchange -> {
             findPath(exchange);
         });
@@ -621,6 +624,57 @@ public class HttpServerPlugin extends Plugin {
         return result;
     }
 
+    public void getGameObjectIdHandler(HttpExchange exchange) throws IOException {
+        InputStream requestBody = exchange.getRequestBody();
+        InputStreamReader isr = new InputStreamReader(requestBody);
+        BufferedReader br = new BufferedReader(isr);
+        StringBuilder requestBodyBuilder = new StringBuilder();
+        String line;
+        while ((line = br.readLine()) != null) {
+            requestBodyBuilder.append(line);
+        }
+        br.close();
+        isr.close();
+        requestBody.close();
+        JSONObject requestData = null;
+        try {
+            String s = requestBodyBuilder.toString();
+            s = s.substring(1, s.length() - 1).replace("\\", "");
+            requestData = new JSONObject(s); // parse request body as json
+        } catch (Throwable e) {
+            e.printStackTrace();
+        }
+
+        int x = (int) requestData.get("x");
+        int y = (int) requestData.get("y");
+        LocalPoint targetTile = LocalPoint.fromWorld(client, x, y);
+        Scene scene = client.getScene();
+        Tile[][] tiles = scene.getTiles()[client.getPlane()];
+        Tile tile = tiles[targetTile.getSceneX()][targetTile.getSceneY()];
+        GameObject[] objects = tile.getGameObjects();
+        JsonObject jsonObject = new JsonObject();
+        StringBuilder stringBuilder = new StringBuilder();
+        stringBuilder.append("[");
+        for (GameObject object : objects) {
+            if (object != null) {
+                stringBuilder.append(object.getId()).append(", ");
+                System.out.println(stringBuilder);
+            }
+
+        }
+        // Remove the trailing comma and space from the last element
+        if (objects.length != 0) {
+            stringBuilder.setLength(stringBuilder.length() - 2);
+        }
+        stringBuilder.append("]");
+
+        exchange.sendResponseHeaders(200, 0);
+        try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
+            out.write(stringBuilder.toString());
+        }
+
+    }
+
     public void getClickboxVerification(HttpExchange exchange) throws IOException {
         InputStream requestBody = exchange.getRequestBody();
         InputStreamReader isr = new InputStreamReader(requestBody);
@@ -663,7 +717,7 @@ public class HttpServerPlugin extends Plugin {
                     Point mouseP = client.getMouseCanvasPosition();
                     if (objects != null && objId > -1 && mouseP != null) {
                         for (GameObject o : objects) {
-                            if (o != null) {
+                            if (o != null && o.getId() == objId) {
                                 Shape p = o.getConvexHull();
                                 if (p != null) {
                                     if (p.contains(mouseP.getX(), mouseP.getY())) {
