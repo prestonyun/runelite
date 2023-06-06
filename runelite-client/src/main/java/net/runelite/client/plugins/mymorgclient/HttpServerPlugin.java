@@ -152,16 +152,18 @@ public class HttpServerPlugin extends Plugin {
     public void onMenuOptionClicked(MenuOptionClicked menuOptionClicked) {
         switch (menuOptionClicked.getMenuAction()) {
             case WIDGET_TARGET_ON_GAME_OBJECT:
-                System.out.println("widget target on game object");
-                System.out.println(menuOptionClicked.getParam0());
-                System.out.println(menuOptionClicked.getParam1());
+                //System.out.println("widget target on game object");
+                //System.out.println(menuOptionClicked.getParam0());
+                //System.out.println(menuOptionClicked.getParam1());
+                break;
             case GAME_OBJECT_FIRST_OPTION:
             case GAME_OBJECT_SECOND_OPTION:
             case GAME_OBJECT_THIRD_OPTION:
             case WALK:
-                System.out.println("walk");
-                System.out.println(menuOptionClicked.getParam0());
-                System.out.println(menuOptionClicked.getParam1());
+                //System.out.println("walk");
+                //System.out.println(menuOptionClicked.getParam0());
+                //System.out.println(menuOptionClicked.getParam1());
+                break;
         }
     }
     @Subscribe
@@ -453,49 +455,61 @@ public class HttpServerPlugin extends Plugin {
             npcHealth2 = 0;
             health = 0;
         }
-        hoveredTile = client.getSelectedSceneTile().getWorldLocation();
-        JsonObject object = new JsonObject();
-        JsonObject camera = new JsonObject();
-        JsonObject worldPoint = new JsonObject();
-        JsonObject mouse = new JsonObject();
-        object.addProperty("animation", player.getAnimation());
-        object.addProperty("run enabled", client.getVarpValue(173));
-        object.addProperty("animation pose", player.getPoseAnimation());
-        object.addProperty("latest msg", msg);
-        object.addProperty("run energy", client.getEnergy());
-        object.addProperty("game tick", client.getGameCycle());
-        object.addProperty("health", client.getBoostedSkillLevel(Skill.HITPOINTS) + "/" + client.getRealSkillLevel(Skill.HITPOINTS));
-        object.addProperty("interacting code", String.valueOf(player.getInteracting()));
-        object.addProperty("npc name", npcName);
-        object.addProperty("npc health ", minHealth);
-        object.addProperty("MAX_DISTANCE", MAX_DISTANCE);
-        mouse.addProperty("x", client.getMouseCanvasPosition().getX());
-        mouse.addProperty("y", client.getMouseCanvasPosition().getY());
-        if (hoveredTile != null) {
-            mouse.addProperty("hoveredX", hoveredTile.getX());
-            mouse.addProperty("hoveredY", hoveredTile.getY());
+        try {
+            Tile hTile = client.getSelectedSceneTile();
+            if (hTile != null) {
+                hoveredTile = hTile.getWorldLocation();
+            }
+            JsonObject object = new JsonObject();
+            JsonObject camera = new JsonObject();
+            JsonObject worldPoint = new JsonObject();
+            JsonObject mouse = new JsonObject();
+            object.addProperty("animation", player.getAnimation());
+            object.addProperty("run enabled", client.getVarpValue(173));
+            object.addProperty("animation pose", player.getPoseAnimation());
+            object.addProperty("latest msg", msg);
+            object.addProperty("run energy", client.getEnergy());
+            object.addProperty("game tick", client.getGameCycle());
+            object.addProperty("health", client.getBoostedSkillLevel(Skill.HITPOINTS) + "/" + client.getRealSkillLevel(Skill.HITPOINTS));
+            object.addProperty("interacting code", String.valueOf(player.getInteracting()));
+            object.addProperty("npc name", npcName);
+            object.addProperty("npc health ", minHealth);
+            object.addProperty("MAX_DISTANCE", MAX_DISTANCE);
+            mouse.addProperty("x", client.getMouseCanvasPosition().getX());
+            mouse.addProperty("y", client.getMouseCanvasPosition().getY());
+            if (hoveredTile != null) {
+                mouse.addProperty("hoveredX", hoveredTile.getX());
+                mouse.addProperty("hoveredY", hoveredTile.getY());
+            }
+            else {
+                mouse.addProperty("hoveredX", -1);
+                mouse.addProperty("hoveredY", -1);
+            }
+            worldPoint.addProperty("x", player.getWorldLocation().getX());
+            worldPoint.addProperty("y", player.getWorldLocation().getY());
+            worldPoint.addProperty("plane", player.getWorldLocation().getPlane());
+            worldPoint.addProperty("regionID", player.getWorldLocation().getRegionID());
+            worldPoint.addProperty("regionX", player.getWorldLocation().getRegionX());
+            worldPoint.addProperty("regionY", player.getWorldLocation().getRegionY());
+            camera.addProperty("yaw", client.getCameraYaw());
+            camera.addProperty("pitch", client.getCameraPitch());
+            camera.addProperty("x", client.getCameraX());
+            camera.addProperty("y", client.getCameraY());
+            camera.addProperty("z", client.getCameraZ());
+            camera.addProperty("x2", client.getCameraX2());
+            camera.addProperty("y2", client.getCameraY2());
+            camera.addProperty("z2", client.getCameraZ2());
+            object.add("worldPoint", worldPoint);
+            object.add("camera", camera);
+            object.add("mouse", mouse);
+            exchange.sendResponseHeaders(200, 0);
+            try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
+                RuneLiteAPI.GSON.toJson(object, out);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
-        worldPoint.addProperty("x", player.getWorldLocation().getX());
-        worldPoint.addProperty("y", player.getWorldLocation().getY());
-        worldPoint.addProperty("plane", player.getWorldLocation().getPlane());
-        worldPoint.addProperty("regionID", player.getWorldLocation().getRegionID());
-        worldPoint.addProperty("regionX", player.getWorldLocation().getRegionX());
-        worldPoint.addProperty("regionY", player.getWorldLocation().getRegionY());
-        camera.addProperty("yaw", client.getCameraYaw());
-        camera.addProperty("pitch", client.getCameraPitch());
-        camera.addProperty("x", client.getCameraX());
-        camera.addProperty("y", client.getCameraY());
-        camera.addProperty("z", client.getCameraZ());
-        camera.addProperty("x2", client.getCameraX2());
-        camera.addProperty("y2", client.getCameraY2());
-        camera.addProperty("z2", client.getCameraZ2());
-        object.add("worldPoint", worldPoint);
-        object.add("camera", camera);
-        object.add("mouse", mouse);
-        exchange.sendResponseHeaders(200, 0);
-        try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
-            RuneLiteAPI.GSON.toJson(object, out);
-        }
+
     }
 
     private HttpHandler handlerForInv(InventoryID inventoryID) {
@@ -806,8 +820,8 @@ public class HttpServerPlugin extends Plugin {
         while ((line = br.readLine()) != null) {
             requestBodyBuilder.append(line);
         }
-        System.out.println(requestBodyBuilder.toString());
-        System.out.println(requestBodyBuilder.charAt(1));
+        //System.out.println(requestBodyBuilder.toString());
+        //System.out.println(requestBodyBuilder.charAt(1));
         br.close();
         isr.close();
         requestBody.close();
@@ -816,7 +830,7 @@ public class HttpServerPlugin extends Plugin {
             String s = requestBodyBuilder.toString();
             s = s.substring(1, s.length() - 1).replace("\\", "");
             requestData = new JSONObject(s); // parse request body as json
-            System.out.println(requestData.toString());
+            //System.out.println(requestData.toString());
         } catch (Throwable e) {
             e.printStackTrace();
         }
@@ -824,6 +838,10 @@ public class HttpServerPlugin extends Plugin {
         int y = (int)requestData.get("y");
         LocalPoint tile = LocalPoint.fromWorld(client, x, y);
         double[] clickbox = getTileClickbox(client, tile);
+        if (clickbox == null) {
+            exchange.sendResponseHeaders(204, 0);
+            return;
+        }
         JsonObject object = new JsonObject();
         object.addProperty("x", clickbox[0]);
         object.addProperty("y", clickbox[1]);
@@ -853,7 +871,7 @@ public class HttpServerPlugin extends Plugin {
             s = s.substring(1, s.length() - 1).replace("\\", "");
             System.out.println(s);
             requestData = new JSONObject(s); // parse request body as json
-            System.out.println(requestData.toString());
+            //System.out.println(requestData.toString());
         } catch (Throwable e) {
             e.printStackTrace();
             exchange.sendResponseHeaders(400, 0); // Bad Request status code
@@ -869,7 +887,7 @@ public class HttpServerPlugin extends Plugin {
         WorldPoint start = new WorldPoint(startX, startY, client.getPlane());
         WorldPoint end = new WorldPoint(endX, endY, client.getPlane());
         LocalCollisionMap localCollisionMap = new LocalCollisionMap(client);
-        System.out.println("initialized collisionmap");
+        //System.out.println("initialized collisionmap");
         Pathfinder pathfinder = null;
         try {
             pathfinder = new Pathfinder(localCollisionMap, this.client, start, end);
@@ -890,21 +908,21 @@ public class HttpServerPlugin extends Plugin {
                 out.write("[]");
             }
         } else {
-            System.out.println("Path: " + path.toString());
+            //System.out.println("Path: " + path.toString());
             StringBuilder stringBuilder = new StringBuilder();
             stringBuilder.append("[");
             for (WorldPoint point : path) {
                 int x = point.getX();
                 int y = point.getY();
                 stringBuilder.append("(").append(x).append(", ").append(y).append("), ");
-                System.out.println(stringBuilder);
+                //System.out.println(stringBuilder);
             }
             // Remove the trailing comma and space from the last element
             if (!path.isEmpty()) {
                 stringBuilder.setLength(stringBuilder.length() - 2);
             }
             stringBuilder.append("]");
-            System.out.println(stringBuilder.toString());
+            //System.out.println(stringBuilder.toString());
 
             exchange.sendResponseHeaders(200, 0);
             try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
