@@ -198,13 +198,10 @@ public class HttpServerPlugin extends Plugin {
         }
         Tile[][] tiles = client.getScene().getTiles()[client.getPlane()];
         Pair<List<WorldPoint>, Boolean> p = pathfinder.pathTo(tiles[50][50]);
-        List<WorldPoint> path = p.getKey();
-        Boolean pf = p.getValue();
         if (client.getCameraZ() != 333) {
             clientThread.invokeLater(() -> client.runScript(ScriptID.CAMERA_DO_ZOOM, 333, 333));
         }
         int skill_count = 0;
-        //System.out.println("run: " + String.valueOf(client.getVarpValue(173)));
         for (Skill skill : Skill.values()) {
             if (skill == Skill.OVERALL) {
                 continue;
@@ -248,16 +245,6 @@ public class HttpServerPlugin extends Plugin {
             {
                 return groundObject;
             }
-        }
-        return null;
-    }
-
-    WorldPoint findTile(int x, int y) {
-        Scene scene = client.getScene();
-        Tile[][][] tiles = scene.getTiles();
-        Tile tile = tiles[client.getPlane()][x][y];
-        if (tile != null) {
-            return tile.getWorldLocation();
         }
         return null;
     }
@@ -577,46 +564,6 @@ public class HttpServerPlugin extends Plugin {
         return result;
     }
 
-    private static double[] getTileClickbox(Client client, LocalPoint tile, Boolean adjusted) {
-        Polygon p = Perspective.getCanvasTilePoly(client, tile);
-        if (p == null) {
-            return null;
-        }
-        if (p.npoints == 0) {
-            return null;
-        }
-        double[] result = new double[4];
-        result[0] = p.getBounds2D().getMinX();
-        result[1] = p.getBounds2D().getMinY();
-        result[2] = p.getBounds2D().getWidth();
-        result[3] = p.getBounds2D().getHeight();
-
-        int anim = client.getLocalPlayer().getPoseAnimation();
-        WorldPoint pos = client.getLocalPlayer().getWorldLocation();
-        LocalPoint posl = LocalPoint.fromWorld(client, pos.getX(), pos.getY());
-        double dx = tile.getX() - posl.getX();
-        double dy = tile.getY() - posl.getY();
-        double dy_dx = dy / dx;
-        double mag = Math.sqrt(1 + Math.pow(dy_dx, 2));
-
-        if (anim == 819 || anim == 820 ||anim == 822) {
-            return result;
-        }
-        else if (anim == 824) {
-            double x = result[0];
-            double y = result[1];
-            result[0] = x * (1 / mag);
-            result[1] = y * (dy_dx / mag);
-            return result;
-        }
-
-        for (int i = 0; i < result.length; i++) {
-            if (result[i] < 0)
-                return null;
-        }
-        return result;
-    }
-
     private static double[] getTileClickbox(Client client, LocalPoint tile) {
         Polygon p = Perspective.getCanvasTilePoly(client, tile);
         if (p == null) {
@@ -762,8 +709,6 @@ public class HttpServerPlugin extends Plugin {
             });
         }
     }
-
-
 
     public void getMinimapLocation(HttpExchange exchange) throws IOException {
         InputStream requestBody = exchange.getRequestBody();
@@ -960,6 +905,23 @@ public class HttpServerPlugin extends Plugin {
         }
     }
 
+    public Map<String, List<Double>> findGoblins() {
+        Map<String, List<Double>> goblinTiles = new HashMap<>();
+        java.util.List<NPC> npcs = client.getNpcs();
+        for (int i = 0; i < npcs.size(); i++) {
+            NPC npc = npcs.get(i);
+            if (Objects.equals(npc.getName(), "Goblin")) {
+                Double xCoord = npc.getCanvasTilePoly().getBounds2D().getCenterX();
+                Double yCoord = npc.getCanvasTilePoly().getBounds2D().getCenterY();
+                String key = xCoord + "," + yCoord;
+                if (!goblinTiles.containsKey(key)) {
+                    goblinTiles.put(key, Arrays.asList(xCoord, yCoord));
+                }
+            }
+        }
+        return goblinTiles;
+    }
+
     public void sendRegion() {
         Player localPlayer = client.getLocalPlayer();
         if (this.client.getGameState() != GameState.LOGGED_IN || localPlayer == null) {
@@ -1055,342 +1017,6 @@ public class HttpServerPlugin extends Plugin {
         } this.seenRegions.add("" + regionID + "-" + regionID);
     }
 
-    private static Map<Integer, Integer> objectBlocking;
-
-    private static Map<Integer, Integer> npcBlocking;
-
-	/*private final int[][] directions = new int[128][128];
-
-	private final int[][] distances = new int[128][128];
-
-	private final int[] bufferX = new int[4096];
-
-	private final int[] bufferY = new int[4096];*/
-
-    static class PathDestination
-    {
-        private WorldPoint worldPoint;
-        private int sizeX;
-        private int sizeY;
-        private int objConfig;
-        private int objID;
-        private Actor actor;
-
-        public PathDestination(WorldPoint worldPoint, int sizeX, int sizeY, int objConfig, int objID)
-        {
-            this.worldPoint = worldPoint;
-            this.sizeX = sizeX;
-            this.sizeY = sizeY;
-            this.objConfig = objConfig;
-            this.objID = objID;
-            this.actor = null;
-        }
-        public PathDestination(WorldPoint worldPoint, int sizeX, int sizeY, int objConfig, int objID, Actor actor)
-        {
-            this.worldPoint = worldPoint;
-            this.sizeX = sizeX;
-            this.sizeY = sizeY;
-            this.objConfig = objConfig;
-            this.objID = objID;
-            this.actor = actor;
-        }
-    }
-
-    private PathDestination activePathDestination;
-
-    private void updateCheckpointTiles()
-    {
-        if (lastTickWorldLocation == null)
-        {
-            return;
-        }
-        WorldArea currentWA = new WorldArea(lastTickWorldLocation.getX(), lastTickWorldLocation.getY(), 1,1, client.getPlane());
-        if (activeCheckpointWPs == null)
-        {
-            return;
-        }
-        if ((lastTickWorldLocation.getPlane() != activeCheckpointWPs.get(0).getPlane()) && activePathFound)
-        {
-            WorldPoint lastActiveCPTile = activeCheckpointWPs.get(0);
-            activeCheckpointWPs.clear();
-            activeCheckpointWPs.add(lastActiveCPTile);
-            pathActive = false;
-            return;
-        }
-        int cpTileIndex = 0;
-        int steps = 0;
-        while (currentWA.toWorldPoint().getX() != activeCheckpointWPs.get(activeCheckpointWPs.size() - 1).getX()
-                || currentWA.toWorldPoint().getY() != activeCheckpointWPs.get(activeCheckpointWPs.size() - 1).getY())
-        {
-            WorldPoint cpTileWP = activeCheckpointWPs.get(cpTileIndex);
-            if (currentWA.toWorldPoint().equals(cpTileWP))
-            {
-                cpTileIndex += 1;
-                cpTileWP = activeCheckpointWPs.get(cpTileIndex);
-            }
-            int dx = Integer.signum(cpTileWP.getX() - currentWA.getX());
-            int dy = Integer.signum(cpTileWP.getY() - currentWA.getY());
-            WorldArea finalCurrentWA = currentWA;
-            boolean movementCheck = currentWA.canTravelInDirection(client, dx, dy, (worldPoint -> {
-                WorldPoint worldPoint1 = new WorldPoint(finalCurrentWA.getX() + dx, finalCurrentWA.getY(), client.getPlane());
-                WorldPoint worldPoint2 = new WorldPoint(finalCurrentWA.getX(), finalCurrentWA.getY() + dy, client.getPlane());
-                WorldPoint worldPoint3 = new WorldPoint(finalCurrentWA.getX() + dx, finalCurrentWA.getY() + dy, client.getPlane());
-                for (WorldArea worldArea : npcBlockWAs)
-                {
-                    if (worldArea.contains(worldPoint1) || worldArea.contains(worldPoint2) || worldArea.contains(worldPoint3))
-                    {
-                        return false;
-                    }
-                }
-                return true;
-            }));
-            if (movementCheck)
-            {
-                currentWA = new WorldArea(currentWA.getX() + dx, currentWA.getY() + dy, 1, 1, client.getPlane());
-            }
-            else
-            {
-                movementCheck = currentWA.canTravelInDirection(client, dx, 0, (worldPoint -> {
-                    WorldPoint worldPoint1 = new WorldPoint(finalCurrentWA.getX() + dx, finalCurrentWA.getY(), client.getPlane());
-                    for (WorldArea worldArea : npcBlockWAs)
-                    {
-                        if (worldArea.contains(worldPoint1))
-                        {
-                            return false;
-                        }
-                    }
-                    return true;
-                }));
-                if (dx != 0 && movementCheck)
-                {
-                    currentWA = new WorldArea(currentWA.getX() + dx, currentWA.getY(), 1, 1, client.getPlane());
-                }
-                else
-                {
-                    movementCheck = currentWA.canTravelInDirection(client, 0, dy, (worldPoint -> {
-                        WorldPoint worldPoint1 = new WorldPoint(finalCurrentWA.getX(), finalCurrentWA.getY() + dy, client.getPlane());
-                        for (WorldArea worldArea : npcBlockWAs)
-                        {
-                            if (worldArea.contains(worldPoint1))
-                            {
-                                return false;
-                            }
-                        }
-                        return true;
-                    }));
-                    if (dy != 0 && movementCheck)
-                    {
-                        currentWA = new WorldArea(currentWA.getX(), currentWA.getY() + dy, 1, 1, client.getPlane());
-                    }
-                }
-            }
-            steps += 1;
-            if (steps == 2 || !isRunning || !activePathFound)
-            {
-                break;
-            }
-        }
-        if (steps == 0 && pathActive)
-        {
-            WorldPoint lastActiveCPTile = activeCheckpointWPs.get(0);
-            activeCheckpointWPs.clear();
-            activeCheckpointWPs.add(lastActiveCPTile);
-            pathActive = false;
-            activePathDestination.objConfig = -1;
-            activePathMismatchLastTick = true;
-            return;
-        }
-        if (!currentWA.toWorldPoint().equals(client.getLocalPlayer().getWorldLocation()) && pathActive)
-        {
-            if (activePathStartedLastTick)
-            {
-                LocalPoint localPoint = LocalPoint.fromWorld(client, activePathDestination.worldPoint);
-                if (localPoint != null)
-                {
-                    Pair<List<WorldPoint>, Boolean> pathResult = pathfinder.pathTo(localPoint.getSceneX(), localPoint.getSceneY(), activePathDestination.sizeX, activePathDestination.sizeY, activePathDestination.objConfig, activePathDestination.objID);
-                    if (pathResult == null)
-                    {
-                        return;
-                    }
-                    lastTickWorldLocation = client.getLocalPlayer().getWorldLocation();
-                    pathActive = true;
-                    activeCheckpointWPs = pathResult.getLeft();
-                    activePathFound = pathResult.getRight();
-                    pathFromCheckpointTiles(activeCheckpointWPs, isRunning, activeMiddlePathTiles, activePathTiles, activePathFound);
-                    activePathStartedLastTick = false;
-                }
-            }
-            else if (activePathMismatchLastTick)
-            {
-                WorldPoint lastActiveCPTile = activeCheckpointWPs.get(0);
-                activeCheckpointWPs.clear();
-                activeCheckpointWPs.add(lastActiveCPTile);
-                pathActive = false;
-                activePathStartedLastTick = false;
-            }
-            activePathMismatchLastTick = true;
-        }
-        else
-        {
-            activePathMismatchLastTick = false;
-        }
-        for (int i = 0; i < cpTileIndex; i++)
-        {
-            if (activeCheckpointWPs.size()>1)
-            {
-                activeCheckpointWPs.remove(0);
-            }
-        }
-    }
-
-    private void pathFromCheckpointTiles(List<WorldPoint> checkpointWPs, boolean running, List<WorldPoint> middlePathTiles, List<WorldPoint> pathTiles, boolean pathFound)
-    {
-        pathTiles.clear();
-        middlePathTiles.clear();
-        WorldArea currentWA = client.getLocalPlayer().getWorldArea();
-        if (currentWA == null || checkpointWPs == null || checkpointWPs.size() == 0)
-        {
-            return;
-        }
-        if ((currentWA.getPlane() != checkpointWPs.get(0).getPlane()) && pathFound)
-        {
-            return;
-        }
-        boolean runSkip = true;
-        int cpTileIndex = 0;
-        while (currentWA.toWorldPoint().getX() != checkpointWPs.get(checkpointWPs.size() - 1).getX()
-                || currentWA.toWorldPoint().getY() != checkpointWPs.get(checkpointWPs.size() - 1).getY())
-        {
-            WorldPoint cpTileWP = checkpointWPs.get(cpTileIndex);
-            if (currentWA.toWorldPoint().equals(cpTileWP))
-            {
-                cpTileIndex += 1;
-                cpTileWP = checkpointWPs.get(cpTileIndex);
-            }
-            int dx = Integer.signum(cpTileWP.getX() - currentWA.getX());
-            int dy = Integer.signum(cpTileWP.getY() - currentWA.getY());
-            WorldArea finalCurrentWA = currentWA;
-            boolean movementCheck = currentWA.canTravelInDirection(client, dx, dy, (worldPoint -> {
-                WorldPoint worldPoint1 = new WorldPoint(finalCurrentWA.getX() + dx, finalCurrentWA.getY(), client.getPlane());
-                WorldPoint worldPoint2 = new WorldPoint(finalCurrentWA.getX(), finalCurrentWA.getY() + dy, client.getPlane());
-                WorldPoint worldPoint3 = new WorldPoint(finalCurrentWA.getX() + dx, finalCurrentWA.getY() + dy, client.getPlane());
-                for (WorldArea worldArea : npcBlockWAs)
-                {
-                    if (worldArea.contains(worldPoint1) || worldArea.contains(worldPoint2) || worldArea.contains(worldPoint3))
-                    {
-                        return false;
-                    }
-                }
-                return true;
-            }));
-            if (movementCheck)
-            {
-                currentWA = new WorldArea(currentWA.getX() + dx, currentWA.getY() + dy, 1, 1, client.getPlane());
-                if (currentWA.toWorldPoint().equals(checkpointWPs.get(checkpointWPs.size() - 1)) || !pathFound)
-                {
-                    pathTiles.add(currentWA.toWorldPoint());
-                }
-                else if (runSkip && running)
-                {
-                    middlePathTiles.add(currentWA.toWorldPoint());
-                }
-                else
-                {
-                    pathTiles.add(currentWA.toWorldPoint());
-                }
-                runSkip = !runSkip;
-                continue;
-            }
-            movementCheck = currentWA.canTravelInDirection(client, dx, 0, (worldPoint -> {
-                for (WorldArea worldArea : npcBlockWAs)
-                {
-                    WorldPoint worldPoint1 = new WorldPoint(finalCurrentWA.getX() + dx, finalCurrentWA.getY(), client.getPlane());
-                    if (worldArea.contains(worldPoint1))
-                    {
-                        return false;
-                    }
-                }
-                return true;
-            }));
-            if (dx != 0 && movementCheck)
-            {
-                currentWA = new WorldArea(currentWA.getX() + dx, currentWA.getY(), 1, 1, client.getPlane());
-                if (currentWA.toWorldPoint().equals(checkpointWPs.get(checkpointWPs.size() - 1)) || !pathFound)
-                {
-                    pathTiles.add(currentWA.toWorldPoint());
-                }
-                else if (runSkip && running)
-                {
-                    middlePathTiles.add(currentWA.toWorldPoint());
-                }
-                else
-                {
-                    pathTiles.add(currentWA.toWorldPoint());
-                }
-                runSkip = !runSkip;
-                continue;
-            }
-            movementCheck = currentWA.canTravelInDirection(client, 0, dy, (worldPoint -> {
-                for (WorldArea worldArea : npcBlockWAs)
-                {
-                    WorldPoint worldPoint1 = new WorldPoint(finalCurrentWA.getX(), finalCurrentWA.getY() + dy, client.getPlane());
-                    if (worldArea.contains(worldPoint1))
-                    {
-                        return false;
-                    }
-                }
-                return true;
-            }));
-            if (dy != 0 && movementCheck)
-            {
-                currentWA = new WorldArea(currentWA.getX(), currentWA.getY() + dy, 1, 1, client.getPlane());
-                if (currentWA.toWorldPoint().equals(checkpointWPs.get(checkpointWPs.size() - 1)) || !pathFound)
-                {
-                    pathTiles.add(currentWA.toWorldPoint());
-                }
-                else if (runSkip && running)
-                {
-                    middlePathTiles.add(currentWA.toWorldPoint());
-                }
-                else
-                {
-                    pathTiles.add(currentWA.toWorldPoint());
-                }
-                runSkip = !runSkip;
-                continue;
-            }
-            return;
-        }
-    }
-
-    public static int getObjectBlocking(final int objectId, final int rotation)
-    {
-        if (objectBlocking == null)
-        {
-            return 0;
-        }
-        int blockingValue = objectBlocking.getOrDefault(objectId, 0);
-        return rotation == 0 ? blockingValue : (((blockingValue << rotation) & 0xF) + (blockingValue >> (4 - rotation)));
-    }
-
-    /*
-    public static Map<WorldPoint, List<Transport>> buildTransportLinks() {
-        Map<WorldPoint, List<Transport>> out = new HashMap<>();
-        for (Transport transport : TransportLoader.buildTransports())
-        {
-            ((List<Transport>)out.computeIfAbsent(transport.getSource(), x -> new ArrayList()))).add(transport);
-        }
-        return out;
-    }
-
-    public boolean notTransport(List<Transport> transports, WorldPoint from, WorldPoint to) {
-        if (transports == null) {
-            return true;
-        }
-        return transports.stream().noneMatch(t -> (t.getSource().equals(from) && t.getDestination().equals(to)));
-    }
-
-     */
 }
 
 
