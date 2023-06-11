@@ -1,5 +1,6 @@
 package net.runelite.client.plugins.mymorgclient;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.gson.*;
 import lombok.Getter;
 import net.runelite.api.Point;
@@ -19,6 +20,7 @@ import java.awt.*;
 import java.io.*;
 import java.net.InetSocketAddress;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -91,6 +93,35 @@ public class HttpServerPlugin extends Plugin {
     private boolean pathActive;
     private WorldPoint lastClickedTile;
     private WorldPoint hoveredTile;
+    //Tempoross Game State:
+    private static final int VARB_IS_TETHERED = 11895;
+    private static final int TEMPOROSS_REGION = 12078;
+    private static final int UNKAH_REWARD_POOL_REGION = 12588;
+    private static final int UNKAH_BOAT_REGION = 12332;
+    private static final int FIRE_ID = 37582;
+    private static final int FIRE_SPREAD_MILLIS = 24000;
+    private static final int FIRE_SPAWN_MILLIS = 9600;
+    private static final int FIRE_SPREADING_SPAWN_MILLIS = 1200;
+    private static final int WAVE_IMPACT_MILLIS = 7800;
+    public static final int TEMPOROSS_HUD_UPDATE = 4075;
+    public static final int STORM_INTENSITY = 350;
+    public static final int MAX_STORM_INTENSITY = 350;
+    private final Set<Integer> TEMPOROSS_GAMEOBJECTS = ImmutableSet.of(
+            FIRE_ID, NullObjectID.NULL_41006, NullObjectID.NULL_41007, NullObjectID.NULL_41352,
+            NullObjectID.NULL_41353, NullObjectID.NULL_41354, NullObjectID.NULL_41355, ObjectID.DAMAGED_MAST_40996,
+            ObjectID.DAMAGED_MAST_40997, ObjectID.DAMAGED_TOTEM_POLE, ObjectID.DAMAGED_TOTEM_POLE_41011);
+    @Getter
+    private final Map<NPC, Instant> fishingSpots = new HashMap<>();
+    private boolean waveIsIncoming;
+    private boolean nearRewardPool;
+    private int previousRegion;
+    private int phase = 1;
+    private int uncookedFish = 0;
+    private int cookedFish = 0;
+    private int crystalFish = 0;
+    private JsonObject lastAction = new JsonObject();
+
+    private Instant waveIncomingStartTime;
     @Provides
     private HttpServerConfig provideConfig(ConfigManager configManager) {
         return configManager.getConfig(HttpServerConfig.class);
@@ -150,6 +181,13 @@ public class HttpServerPlugin extends Plugin {
 
     @Subscribe
     public void onMenuOptionClicked(MenuOptionClicked menuOptionClicked) {
+        JsonObject jb = new JsonObject();
+        jb.addProperty("option", menuOptionClicked.getMenuOption());
+        jb.addProperty("target", menuOptionClicked.getMenuTarget());
+        jb.addProperty("id", menuOptionClicked.getId());
+        jb.addProperty("action", menuOptionClicked.getMenuAction().toString());
+        jb.addProperty("tick", client.getTickCount());
+
         switch (menuOptionClicked.getMenuAction()) {
             case WIDGET_TARGET_ON_GAME_OBJECT:
                 //System.out.println("widget target on game object");
@@ -489,6 +527,7 @@ public class HttpServerPlugin extends Plugin {
             object.add("worldPoint", worldPoint);
             object.add("camera", camera);
             object.add("mouse", mouse);
+            object.add("lastAction", lastAction);
             exchange.sendResponseHeaders(200, 0);
             try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
                 RuneLiteAPI.GSON.toJson(object, out);
