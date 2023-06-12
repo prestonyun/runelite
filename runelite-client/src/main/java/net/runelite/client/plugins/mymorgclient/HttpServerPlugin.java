@@ -8,10 +8,8 @@ import net.runelite.api.coords.Direction;
 import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.coords.WorldArea;
 import net.runelite.api.coords.WorldPoint;
-import net.runelite.api.events.ChatMessage;
+import net.runelite.api.events.*;
 import com.google.inject.Provides;
-import net.runelite.api.events.GameObjectSpawned;
-import net.runelite.api.events.GameTick;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
@@ -31,7 +29,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.*;
-import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
@@ -187,7 +184,7 @@ public class HttpServerPlugin extends Plugin {
         jb.addProperty("id", menuOptionClicked.getId());
         jb.addProperty("action", menuOptionClicked.getMenuAction().toString());
         jb.addProperty("tick", client.getTickCount());
-
+        lastAction = jb;
         switch (menuOptionClicked.getMenuAction()) {
             case WIDGET_TARGET_ON_GAME_OBJECT:
                 //System.out.println("widget target on game object");
@@ -208,6 +205,18 @@ public class HttpServerPlugin extends Plugin {
     public void onChatMessage(ChatMessage event) {
         msg = event.getMessage();
         //System.out.println("onChatmsg:" + msg);
+    }
+
+    @Subscribe
+    public void onNpcSpawned(NpcSpawned npcSpawned) {
+        if (NpcID.FISHING_SPOT_10569 == npcSpawned.getNpc().getId()) {
+            fishingSpots.put(npcSpawned.getNpc(), Instant.now());
+        }
+    }
+
+    @Subscribe
+    public void onNpcDespawned(NpcDespawned npcDespawned) {
+        fishingSpots.remove(npcDespawned.getNpc());
     }
 
     @Override
