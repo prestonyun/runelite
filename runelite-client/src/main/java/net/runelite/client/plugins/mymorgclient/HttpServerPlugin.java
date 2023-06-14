@@ -90,6 +90,7 @@ public class HttpServerPlugin extends Plugin {
     private boolean pathActive;
     private WorldPoint lastClickedTile;
     private WorldPoint hoveredTile;
+    private WorldPoint destinationTile;
     //Tempoross Game State:
     private static final int VARB_IS_TETHERED = 11895;
     private static final int TEMPOROSS_REGION = 12078;
@@ -145,6 +146,9 @@ public class HttpServerPlugin extends Plugin {
         server.createContext("/equip", handlerForInv(InventoryID.EQUIPMENT));
         server.createContext("/events", this::handleEvents);
         server.createContext("/pathing", this::handlePathing);
+        server.createContext("/tempoross", exchange -> {
+            handleTempoross(exchange);
+        });
         server.createContext("/objectId", exchange -> {
             getGameObjectIdHandler(exchange);
         });
@@ -258,6 +262,29 @@ public class HttpServerPlugin extends Plugin {
             skill_count++;
         }
         tickCount++;
+    }
+
+    public void handleMovement(HttpExchange exchange) throws IOException {
+        JsonObject jb = new JsonObject();
+        jb.addProperty("tick", client.getTickCount());
+        jb.addProperty("destinationX", destinationTile.getX());
+        jb.addProperty("destinationY", destinationTile.getY());
+        String response = jb.toString();
+        exchange.sendResponseHeaders(200, response.length());
+        OutputStream os = exchange.getResponseBody();
+        os.write(response.getBytes());
+        os.close();
+    }
+
+    public void handleTempoross(HttpExchange exchange) throws IOException {
+        JsonObject jb = new JsonObject();
+        jb.addProperty("tick", client.getTickCount());
+        jb.addProperty("waveIncoming", waveIsIncoming);
+        String response = jb.toString();
+        exchange.sendResponseHeaders(200, response.length());
+        OutputStream os = exchange.getResponseBody();
+        os.write(response.getBytes());
+        os.close();
     }
 
     TileObject findTileObject(int x, int y, int id)
