@@ -108,8 +108,13 @@ public class HttpServerPlugin extends Plugin {
             FIRE_ID, NullObjectID.NULL_41006, NullObjectID.NULL_41007, NullObjectID.NULL_41352,
             NullObjectID.NULL_41353, NullObjectID.NULL_41354, NullObjectID.NULL_41355, ObjectID.DAMAGED_MAST_40996,
             ObjectID.DAMAGED_MAST_40997, ObjectID.DAMAGED_TOTEM_POLE, ObjectID.DAMAGED_TOTEM_POLE_41011);
+    private static final String WAVE_INCOMING_MESSAGE = "a colossal wave closes in...";
+    private static final String WAVE_END_SAFE = "as the wave washes over you";
+    private static final String WAVE_END_DANGEROUS = "the wave slams into you";
+    private static final String TEMPOROSS_VULNERABLE_MESSAGE = "tempoross is vulnerable";
     @Getter
     private final Map<NPC, Instant> fishingSpots = new HashMap<>();
+    private final List<GameObject> totemMap = new ArrayList<>();
     private boolean waveIsIncoming;
     private boolean nearRewardPool;
     private int previousRegion;
@@ -206,9 +211,20 @@ public class HttpServerPlugin extends Plugin {
         }
     }
     @Subscribe
-    public void onChatMessage(ChatMessage event) {
-        msg = event.getMessage();
-        //System.out.println("onChatmsg:" + msg);
+    public void onChatMessage(ChatMessage chatMessage) {
+        if (chatMessage.getType() != ChatMessageType.GAMEMESSAGE)
+        {
+            return;
+        }
+        String message = chatMessage.getMessage().toLowerCase();
+        if (message.contains(WAVE_INCOMING_MESSAGE))
+        {
+            waveIsIncoming = true;
+        }
+        else if (message.contains(WAVE_END_SAFE))
+        {
+            waveIsIncoming = false;
+        }
     }
 
     @Subscribe
@@ -262,6 +278,8 @@ public class HttpServerPlugin extends Plugin {
             skill_count++;
         }
         tickCount++;
+        // Tempoross:
+        destinationTile = WorldPoint.fromLocal(client, client.getLocalDestinationLocation());
     }
 
     public void handleMovement(HttpExchange exchange) throws IOException {
@@ -269,22 +287,21 @@ public class HttpServerPlugin extends Plugin {
         jb.addProperty("tick", client.getTickCount());
         jb.addProperty("destinationX", destinationTile.getX());
         jb.addProperty("destinationY", destinationTile.getY());
-        String response = jb.toString();
-        exchange.sendResponseHeaders(200, response.length());
-        OutputStream os = exchange.getResponseBody();
-        os.write(response.getBytes());
-        os.close();
+        exchange.sendResponseHeaders(200, 0);
+        try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
+            RuneLiteAPI.GSON.toJson(jb, out);
+        }
     }
 
     public void handleTempoross(HttpExchange exchange) throws IOException {
         JsonObject jb = new JsonObject();
         jb.addProperty("tick", client.getTickCount());
         jb.addProperty("waveIncoming", waveIsIncoming);
-        String response = jb.toString();
-        exchange.sendResponseHeaders(200, response.length());
-        OutputStream os = exchange.getResponseBody();
-        os.write(response.getBytes());
-        os.close();
+        jb.addProperty("fishingspots", fishingSpots.size());
+        exchange.sendResponseHeaders(200, 0);
+        try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
+            RuneLiteAPI.GSON.toJson(jb, out);
+        }
     }
 
     TileObject findTileObject(int x, int y, int id)
