@@ -326,14 +326,6 @@ public class Pathmarker
             case 10: // Pathing to straight centrepiece
             case 11: // Pathing to diagonal centrepiece
             case 22: // Pathing to ground decor
-            {
-                int objFlags = 0;
-                if (Arrays.asList(10,11,22).contains(objShape))
-                {
-                    objFlags = HttpServerPlugin.getObjectBlocking(objID, objRot);
-                }
-                return reachRectangularBoundary(flags, baseX, baseY, targetX, targetY, sizeX, sizeY, objFlags);
-            }
         }
         return false;
     }
