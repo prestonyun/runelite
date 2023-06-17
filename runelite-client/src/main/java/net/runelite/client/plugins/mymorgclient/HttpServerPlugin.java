@@ -253,18 +253,6 @@ public class HttpServerPlugin extends Plugin {
         currentTime = System.currentTimeMillis();
         plants.removeIf(plant -> plant.getPlantTimeRelative() == 1);
         xpTracker.update();
-        Player localPlayer = client.getLocalPlayer();
-        if (localPlayer == null) {
-            if (this.plane == -1) {
-                this.plane = localPlayer.getWorldLocation().getPlane();
-            }
-            else if (this.plane != localPlayer.getWorldLocation().getPlane()) {
-                this.plane = localPlayer.getWorldLocation().getPlane();
-                sendRegion();
-            }
-        }
-        Tile[][] tiles = client.getScene().getTiles()[client.getPlane()];
-        Pair<List<WorldPoint>, Boolean> p = pathfinder.pathTo(tiles[50][50]);
         if (client.getCameraZ() != 333) {
             clientThread.invokeLater(() -> client.runScript(ScriptID.CAMERA_DO_ZOOM, 333, 333));
         }
@@ -1012,101 +1000,6 @@ public class HttpServerPlugin extends Plugin {
             }
         }
         return goblinTiles;
-    }
-
-    public void sendRegion() {
-        Player localPlayer = client.getLocalPlayer();
-        if (this.client.getGameState() != GameState.LOGGED_IN || localPlayer == null) {
-            return;
-        }
-
-        WorldPoint localWorldPoint = localPlayer.getWorldLocation();
-
-        if (localWorldPoint == null) {
-            return;
-        }
-
-        int plane = client.getPlane();
-        int regionID = localWorldPoint.getRegionID();
-
-        if (this.seenRegions.contains("" + regionID + "-" + regionID)) {
-            return;
-        }
-
-        CollisionData[] col = this.client.getCollisionMaps();
-
-        if (col == null) {
-            return;
-        }
-
-        List<TileFlag> tileFlags = new ArrayList<>();
-        //Map<WorldPoint, List<Transport>> transportLinks = buildTransportLinks();
-
-        CollisionData data = col[plane];
-
-        if (data == null) {
-            return;
-        }
-
-        int[][] flags = data.getFlags();
-
-        for (int x = 0; x < flags.length; x++) {
-            for (int y = 0; y < flags[x].length; y++) {
-                LocalPoint localPoint = LocalPoint.fromScene(x, y);
-                WorldPoint worldPoint = WorldPoint.fromLocalInstance(client, localPoint);
-
-                int tileX = worldPoint.getX();
-                int tileY = worldPoint.getY();
-
-                int flag = flags[x][y];
-
-                if (flag != 16777215) {
-                    int regionId = tileX >> 6 << 8 | tileY >> 6;
-
-                    TileFlag tileFlag = new TileFlag(tileX, tileY, plane, 2359552, regionId);
-                    Tile tile = Reachable.getAt(this.client, x + this.client.getBaseX(), y + this.client.getBaseY(), plane);
-                    if (tile == null) {
-                        tileFlags.add(tileFlag);
-                    }
-                    else {
-                        tileFlag.setFlag(flag);
-                        WorldPoint tileCoords = tile.getWorldLocation();
-
-                        WorldPoint northernTile = tileCoords.dy(1);
-                        if (Reachable.getCollisionFlag(this.client, northernTile) != 16777215) {
-                            if (Reachable.isObstacle(this.client, northernTile) && !Reachable.isWalled(Direction.NORTH, tileFlag.getFlag())) {
-                                tileFlag.setFlag(tileFlag.getFlag() + 2);
-                            }
-                            WorldPoint easternTile = tileCoords.dx(1);
-                            if (Reachable.getCollisionFlag(this.client, easternTile) != 16777215) {
-                                if (Reachable.isObstacle(this.client, easternTile) && !Reachable.isWalled(Direction.EAST, tileFlag.getFlag())) {
-                                    tileFlag.setFlag(tileFlag.getFlag() + 8);
-                                }
-
-                                //List<Transport> transports = transportLinks.get(tileCoords);
-                                if (plane == this.client.getPlane()) {
-                                    for (Direction direction : Direction.values()) {
-                                        switch (direction) {
-                                            case NORTH:
-                                                if ((Reachable.hasDoor(this.client, tile, direction) || Reachable.hasDoor(this.client, northernTile, Direction.SOUTH))) {//&&
-                                                        //notTransport(transports, tileCoords, northernTile)) {
-                                                    tileFlag.setFlag(tileFlag.getFlag() - 2);
-                                                }
-                                                break;
-                                            case EAST:
-                                                if ((Reachable.hasDoor(this.client, tile, direction) || Reachable.hasDoor(this.client, easternTile, Direction.WEST))) {//&&
-                                                        //notTransport(transports, tileCoords, easternTile)) {
-                                                    tileFlag.setFlag(tileFlag.getFlag() - 8);
-                                                }
-                                                break;
-                                        }
-                                    }
-                                }
-                                tileFlags.add(tileFlag); }}
-                    }
-                }
-            }
-        } this.seenRegions.add("" + regionID + "-" + regionID);
     }
 
 }
