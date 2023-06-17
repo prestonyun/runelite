@@ -14,6 +14,8 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
+import net.runelite.client.plugins.mymorgclient.NPCAttributes;
+
 import java.awt.*;
 import java.io.*;
 import java.net.InetSocketAddress;
@@ -113,7 +115,7 @@ public class HttpServerPlugin extends Plugin {
     private static final String WAVE_END_DANGEROUS = "the wave slams into you";
     private static final String TEMPOROSS_VULNERABLE_MESSAGE = "tempoross is vulnerable";
     @Getter
-    private final Map<NPC, Instant> fishingSpots = new HashMap<>();
+    private final Map<NPC, NPCAttributes> fishingSpots = new HashMap<>();
     private final List<GameObject> totemMap = new ArrayList<>();
     private boolean waveIsIncoming;
     private boolean nearRewardPool;
@@ -204,9 +206,10 @@ public class HttpServerPlugin extends Plugin {
             case GAME_OBJECT_SECOND_OPTION:
             case GAME_OBJECT_THIRD_OPTION:
             case WALK:
-                //System.out.println("walk");
-                //System.out.println(menuOptionClicked.getParam0());
-                //System.out.println(menuOptionClicked.getParam1());
+                Tile hovered = client.getSelectedSceneTile();
+                if (hovered != null) {
+                    hoveredTile = hovered.getWorldLocation();
+                }
                 break;
         }
     }
@@ -230,7 +233,10 @@ public class HttpServerPlugin extends Plugin {
     @Subscribe
     public void onNpcSpawned(NpcSpawned npcSpawned) {
         if (NpcID.FISHING_SPOT_10569 == npcSpawned.getNpc().getId()) {
-            fishingSpots.put(npcSpawned.getNpc(), Instant.now());
+            fishingSpots.put(npcSpawned.getNpc(), new NPCAttributes(npcSpawned.getNpc().getName(), Instant.now(), npcSpawned.getNpc().getWorldLocation()));
+        }
+        else if (NpcID.FISHING_SPOT_10568 == npcSpawned.getNpc().getId()) {
+            fishingSpots.put(npcSpawned.getNpc(), new NPCAttributes(npcSpawned.getNpc().getName(), Instant.now(), npcSpawned.getNpc().getWorldLocation()));
         }
     }
 
@@ -267,7 +273,6 @@ public class HttpServerPlugin extends Plugin {
         }
         tickCount++;
         // Tempoross:
-        destinationTile = WorldPoint.fromLocal(client, client.getLocalDestinationLocation());
     }
 
     public void handleMovement(HttpExchange exchange) throws IOException {
@@ -282,6 +287,10 @@ public class HttpServerPlugin extends Plugin {
     }
 
     public void handleTempoross(HttpExchange exchange) throws IOException {
+        for (NPC npc : fishingSpots.keySet()) {
+            WorldPoint spotLocation = npc.getWorldLocation();
+        }
+
         JsonObject jb = new JsonObject();
         jb.addProperty("tick", client.getTickCount());
         jb.addProperty("waveIncoming", waveIsIncoming);
