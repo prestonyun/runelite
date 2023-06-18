@@ -50,7 +50,6 @@ import org.json.JSONObject;
 )
 @Slf4j
 public class HttpServerPlugin extends Plugin {
-    private static final Duration WAIT = Duration.ofSeconds(5);
     @Inject
     public Client client;
     @Inject
@@ -68,7 +67,6 @@ public class HttpServerPlugin extends Plugin {
     public HttpServer server;
     public int MAX_DISTANCE = 1200;
     public String msg;
-    private final Set<String> seenRegions = new HashSet<>();
     private int plane = -1;
     @Getter
     private final LinkedHashSet<TitheFarmPlant> plants = new LinkedHashSet<>();
@@ -142,7 +140,6 @@ public class HttpServerPlugin extends Plugin {
         activeMiddlePathTiles = new ArrayList<>();
         pathActive = false;
         activePathStartedLastTick = false;
-        npcBlockWAs = new ArrayList<>();
         pathfinder = new Pathmarker(client, this);
         skillList = Skill.values();
         xpTracker = new XpTracker(this);
@@ -191,6 +188,13 @@ public class HttpServerPlugin extends Plugin {
     public void onMenuOptionClicked(MenuOptionClicked menuOptionClicked) {
         JsonObject jb = new JsonObject();
         jb.addProperty("option", menuOptionClicked.getMenuOption());
+        String target = menuOptionClicked.getMenuTarget();
+        Tile hoveredTarget = client.getSelectedSceneTile();
+        if (hoveredTarget != null) {
+            jb.addProperty("targetLocation", "(" + hoveredTarget.getWorldLocation().getX() + ", " + hoveredTarget.getWorldLocation().getY() + ")");
+        } else {
+            jb.addProperty("targetLocation", "null");
+        }
         jb.addProperty("target", menuOptionClicked.getMenuTarget());
         jb.addProperty("id", menuOptionClicked.getId());
         jb.addProperty("action", menuOptionClicked.getMenuAction().toString());
@@ -233,10 +237,10 @@ public class HttpServerPlugin extends Plugin {
     @Subscribe
     public void onNpcSpawned(NpcSpawned npcSpawned) {
         if (NpcID.FISHING_SPOT_10569 == npcSpawned.getNpc().getId()) {
-            fishingSpots.put(npcSpawned.getNpc(), new NPCAttributes(npcSpawned.getNpc().getName(), Instant.now(), npcSpawned.getNpc().getWorldLocation()));
+            fishingSpots.put(npcSpawned.getNpc(), new NPCAttributes(npcSpawned.getNpc().getName(), npcSpawned.getNpc().getId(), Instant.now(), npcSpawned.getNpc().getWorldLocation()));
         }
         else if (NpcID.FISHING_SPOT_10568 == npcSpawned.getNpc().getId()) {
-            fishingSpots.put(npcSpawned.getNpc(), new NPCAttributes(npcSpawned.getNpc().getName(), Instant.now(), npcSpawned.getNpc().getWorldLocation()));
+            fishingSpots.put(npcSpawned.getNpc(), new NPCAttributes(npcSpawned.getNpc().getName(), npcSpawned.getNpc().getId(), Instant.now(), npcSpawned.getNpc().getWorldLocation()));
         }
     }
 
