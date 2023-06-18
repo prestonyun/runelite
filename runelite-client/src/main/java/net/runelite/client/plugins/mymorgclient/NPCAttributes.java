@@ -9,16 +9,16 @@ public class NPCAttributes {
     @Getter
     private String NpcType;
     @Getter
-    private Instant NpcInstant;
-    @Getter
     private WorldPoint NpcLocation;
     @Getter
     private int NpcId;
+    @Getter
+    private int NpcIndex;
 
-    public NPCAttributes(String npcType, int npcId, Instant npcInstant, WorldPoint npcLocation) {
+    public NPCAttributes(String npcType, int npcId, WorldPoint npcLocation, int npcIndex) {
         this.NpcType = npcType;
-        this.NpcInstant = npcInstant;
         this.NpcLocation = npcLocation;
         this.NpcId = npcId;
+        this.NpcIndex = npcIndex;
     }
 }

@@ -29,6 +29,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
+
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.*;
 import net.runelite.client.callback.ClientThread;
@@ -41,6 +42,8 @@ import net.runelite.http.api.RuneLiteAPI;
 import org.apache.commons.lang3.tuple.Pair;
 import org.json.JSONObject;
 
+import net.runelite.client.plugins.mymorgclient.Fighter;
+
 
 @PluginDescriptor(
         name = "Morg HTTP Client",
@@ -50,11 +53,36 @@ import org.json.JSONObject;
 )
 @Slf4j
 public class HttpServerPlugin extends Plugin {
+    public static final int TEMPOROSS_HUD_UPDATE = 4075;
+    public static final int STORM_INTENSITY = 350;
+    public static final int MAX_STORM_INTENSITY = 350;
+    //Tempoross Game State:
+    private static final int VARB_IS_TETHERED = 11895;
+    private static final int TEMPOROSS_REGION = 12078;
+    private static final int UNKAH_REWARD_POOL_REGION = 12588;
+    private static final int UNKAH_BOAT_REGION = 12332;
+    private static final int FIRE_ID = 37582;
+    private static final int FIRE_SPREAD_MILLIS = 24000;
+    private static final int FIRE_SPAWN_MILLIS = 9600;
+    private static final int FIRE_SPREADING_SPAWN_MILLIS = 1200;
+    private static final int WAVE_IMPACT_MILLIS = 7800;
+    private static final String WAVE_INCOMING_MESSAGE = "a colossal wave closes in...";
+    private static final String WAVE_END_SAFE = "as the wave washes over you";
+    private static final String WAVE_END_DANGEROUS = "the wave slams into you";
+    private static final String TEMPOROSS_VULNERABLE_MESSAGE = "tempoross is vulnerable";
+    @Getter
+    private final LinkedHashSet<TitheFarmPlant> plants = new LinkedHashSet<>();
+    private final Set<Integer> TEMPOROSS_GAMEOBJECTS = ImmutableSet.of(
+            FIRE_ID, NullObjectID.NULL_41006, NullObjectID.NULL_41007, NullObjectID.NULL_41352,
+            NullObjectID.NULL_41353, NullObjectID.NULL_41354, NullObjectID.NULL_41355, ObjectID.DAMAGED_MAST_40996,
+            ObjectID.DAMAGED_MAST_40997, ObjectID.DAMAGED_TOTEM_POLE, ObjectID.DAMAGED_TOTEM_POLE_41011);
+    @Getter
+    private final Map<NPC, NPCAttributes> fishingSpots = new HashMap<>();
+    private final List<GameObject> totemMap = new ArrayList<>();
     @Inject
     public Client client;
     @Inject
     public ClientThread clientThread;
-    private int plantCounter;
     public Skill[] skillList;
     public XpTracker xpTracker;
     public Skill mostRecentSkillGained;
@@ -67,20 +95,17 @@ public class HttpServerPlugin extends Plugin {
     public HttpServer server;
     public int MAX_DISTANCE = 1200;
     public String msg;
+    public Pathmarker pathfinder;
+    private int plantCounter;
     private int plane = -1;
-    @Getter
-    private final LinkedHashSet<TitheFarmPlant> plants = new LinkedHashSet<>();
     @Getter
     private List<WorldPoint> activeCheckpointWPs;
     private WorldPoint lastTickWorldLocation;
     private boolean isRunning;
     private boolean activePathStartedLastTick;
-
     private boolean activePathMismatchLastTick;
-
     private boolean calcTilePathOnNextClientTick;
     private boolean activePathFound;
-    public Pathmarker pathfinder;
     private List<WorldArea> npcBlockWAs;
     @Getter
     private List<WorldPoint> activePathTiles;
@@ -91,30 +116,6 @@ public class HttpServerPlugin extends Plugin {
     private WorldPoint lastClickedTile;
     private WorldPoint hoveredTile;
     private WorldPoint destinationTile;
-    //Tempoross Game State:
-    private static final int VARB_IS_TETHERED = 11895;
-    private static final int TEMPOROSS_REGION = 12078;
-    private static final int UNKAH_REWARD_POOL_REGION = 12588;
-    private static final int UNKAH_BOAT_REGION = 12332;
-    private static final int FIRE_ID = 37582;
-    private static final int FIRE_SPREAD_MILLIS = 24000;
-    private static final int FIRE_SPAWN_MILLIS = 9600;
-    private static final int FIRE_SPREADING_SPAWN_MILLIS = 1200;
-    private static final int WAVE_IMPACT_MILLIS = 7800;
-    public static final int TEMPOROSS_HUD_UPDATE = 4075;
-    public static final int STORM_INTENSITY = 350;
-    public static final int MAX_STORM_INTENSITY = 350;
-    private final Set<Integer> TEMPOROSS_GAMEOBJECTS = ImmutableSet.of(
-            FIRE_ID, NullObjectID.NULL_41006, NullObjectID.NULL_41007, NullObjectID.NULL_41352,
-            NullObjectID.NULL_41353, NullObjectID.NULL_41354, NullObjectID.NULL_41355, ObjectID.DAMAGED_MAST_40996,
-            ObjectID.DAMAGED_MAST_40997, ObjectID.DAMAGED_TOTEM_POLE, ObjectID.DAMAGED_TOTEM_POLE_41011);
-    private static final String WAVE_INCOMING_MESSAGE = "a colossal wave closes in...";
-    private static final String WAVE_END_SAFE = "as the wave washes over you";
-    private static final String WAVE_END_DANGEROUS = "the wave slams into you";
-    private static final String TEMPOROSS_VULNERABLE_MESSAGE = "tempoross is vulnerable";
-    @Getter
-    private final Map<NPC, NPCAttributes> fishingSpots = new HashMap<>();
-    private final List<GameObject> totemMap = new ArrayList<>();
     private boolean waveIsIncoming;
     private boolean nearRewardPool;
     private int previousRegion;
@@ -125,6 +126,7 @@ public class HttpServerPlugin extends Plugin {
     private JsonObject lastAction = new JsonObject();
 
     private Instant waveIncomingStartTime;
+
     @Provides
     private HttpServerConfig provideConfig(ConfigManager configManager) {
         return configManager.getConfig(HttpServerConfig.class);
@@ -184,276 +186,11 @@ public class HttpServerPlugin extends Plugin {
         }
     }
 
-    @Subscribe
-    public void onMenuOptionClicked(MenuOptionClicked menuOptionClicked) {
-        JsonObject jb = new JsonObject();
-        jb.addProperty("option", menuOptionClicked.getMenuOption());
-        String target = menuOptionClicked.getMenuTarget();
-        Tile hoveredTarget = client.getSelectedSceneTile();
-        if (hoveredTarget != null) {
-            jb.addProperty("targetLocation", "(" + hoveredTarget.getWorldLocation().getX() + ", " + hoveredTarget.getWorldLocation().getY() + ")");
-        } else {
-            jb.addProperty("targetLocation", "null");
-        }
-        jb.addProperty("target", menuOptionClicked.getMenuTarget());
-        jb.addProperty("id", menuOptionClicked.getId());
-        jb.addProperty("action", menuOptionClicked.getMenuAction().toString());
-        jb.addProperty("tick", client.getTickCount());
-        lastAction = jb;
-        switch (menuOptionClicked.getMenuAction()) {
-            case WIDGET_TARGET_ON_GAME_OBJECT:
-                //System.out.println("widget target on game object");
-                //System.out.println(menuOptionClicked.getParam0());
-                //System.out.println(menuOptionClicked.getParam1());
-                break;
-            case GAME_OBJECT_FIRST_OPTION:
-            case GAME_OBJECT_SECOND_OPTION:
-            case GAME_OBJECT_THIRD_OPTION:
-            case WALK:
-                Tile hovered = client.getSelectedSceneTile();
-                if (hovered != null) {
-                    hoveredTile = hovered.getWorldLocation();
-                }
-                break;
-        }
-    }
-    @Subscribe
-    public void onChatMessage(ChatMessage chatMessage) {
-        if (chatMessage.getType() != ChatMessageType.GAMEMESSAGE)
-        {
-            return;
-        }
-        String message = chatMessage.getMessage().toLowerCase();
-        if (message.contains(WAVE_INCOMING_MESSAGE))
-        {
-            waveIsIncoming = true;
-        }
-        else if (message.contains(WAVE_END_SAFE))
-        {
-            waveIsIncoming = false;
-        }
-    }
-
-    @Subscribe
-    public void onNpcSpawned(NpcSpawned npcSpawned) {
-        if (NpcID.FISHING_SPOT_10569 == npcSpawned.getNpc().getId()) {
-            fishingSpots.put(npcSpawned.getNpc(), new NPCAttributes(npcSpawned.getNpc().getName(), npcSpawned.getNpc().getId(), Instant.now(), npcSpawned.getNpc().getWorldLocation()));
-        }
-        else if (NpcID.FISHING_SPOT_10568 == npcSpawned.getNpc().getId()) {
-            fishingSpots.put(npcSpawned.getNpc(), new NPCAttributes(npcSpawned.getNpc().getName(), npcSpawned.getNpc().getId(), Instant.now(), npcSpawned.getNpc().getWorldLocation()));
-        }
-    }
-
-    @Subscribe
-    public void onNpcDespawned(NpcDespawned npcDespawned) {
-        fishingSpots.remove(npcDespawned.getNpc());
-    }
-
     @Override
     protected void shutDown() throws Exception {
         server.stop(1);
     }
 
-    public Client getClient() {
-        return client;
-    }
-
-    @Subscribe
-    public void onGameTick(GameTick tick) {
-        currentTime = System.currentTimeMillis();
-        plants.removeIf(plant -> plant.getPlantTimeRelative() == 1);
-        xpTracker.update();
-        if (client.getCameraZ() != 333) {
-            clientThread.invokeLater(() -> client.runScript(ScriptID.CAMERA_DO_ZOOM, 333, 333));
-        }
-        int skill_count = 0;
-        for (Skill skill : Skill.values()) {
-            if (skill == Skill.OVERALL) {
-                continue;
-            }
-            int xp_gained = handleTracker(skill);
-            xp_gained_skills[skill_count] = xp_gained;
-            skill_count++;
-        }
-        tickCount++;
-        // Tempoross:
-    }
-
-    public void handleMovement(HttpExchange exchange) throws IOException {
-        JsonObject jb = new JsonObject();
-        jb.addProperty("tick", client.getTickCount());
-        jb.addProperty("destinationX", destinationTile.getX());
-        jb.addProperty("destinationY", destinationTile.getY());
-        exchange.sendResponseHeaders(200, 0);
-        try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
-            RuneLiteAPI.GSON.toJson(jb, out);
-        }
-    }
-
-    public void handleTempoross(HttpExchange exchange) throws IOException {
-        fishingSpots.forEach((npc, attributes) -> {
-            System.out.println(attributes.getNpcType());
-            System.out.println(attributes.getNpcLocation().toString());
-            System.out.println(attributes.getNpcInstant().toString());
-            if (attributes.getNpcType().equals("Fishing spot")) {
-                System.out.println("fishing spot");
-            }
-        });
-
-        JsonObject jb = new JsonObject();
-        jb.addProperty("tick", client.getTickCount());
-        jb.addProperty("waveIncoming", waveIsIncoming);
-        jb.addProperty("fishingspots", fishingSpots.size());
-        exchange.sendResponseHeaders(200, 0);
-        try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
-            RuneLiteAPI.GSON.toJson(jb, out);
-        }
-    }
-
-    TileObject findTileObject(int x, int y, int id)
-    {
-        Scene scene = client.getScene();
-        Tile[][][] tiles = scene.getTiles();
-        Tile tile = tiles[client.getPlane()][x][y];
-        if (tile != null)
-        {
-            for (GameObject gameObject : tile.getGameObjects())
-            {
-                if (gameObject != null && gameObject.getId() == id)
-                {
-                    return gameObject;
-                }
-            }
-
-            WallObject wallObject = tile.getWallObject();
-            if (wallObject != null && wallObject.getId() == id)
-            {
-                return wallObject;
-            }
-
-            DecorativeObject decorativeObject = tile.getDecorativeObject();
-            if (decorativeObject != null && decorativeObject.getId() == id)
-            {
-                return decorativeObject;
-            }
-
-            GroundObject groundObject = tile.getGroundObject();
-            if (groundObject != null && groundObject.getId() == id)
-            {
-                return groundObject;
-            }
-        }
-        return null;
-    }
-
-    @Subscribe
-    public void onGameObjectSpawned(GameObjectSpawned event) {
-        GameObject gameObject = event.getGameObject();
-        TitheFarmPlantType type = TitheFarmPlantType.getPlantType(gameObject.getId());
-        if (type == null)
-        {
-            return;
-        }
-
-        TitheFarmPlantState state = TitheFarmPlantState.getState(gameObject.getId());
-
-        TitheFarmPlant newPlant = new TitheFarmPlant(state, type, gameObject);
-        TitheFarmPlant oldPlant = getPlantFromCollection(gameObject);
-
-        if (oldPlant == null && newPlant.getType() != TitheFarmPlantType.EMPTY)
-        {
-            log.debug("Added plant {}", newPlant);
-            plants.add(newPlant);
-        }
-        else if (oldPlant == null)
-        {
-            return;
-        }
-        else if (newPlant.getType() == TitheFarmPlantType.EMPTY)
-        {
-            log.debug("Removed plant {}", oldPlant);
-            plants.remove(oldPlant);
-        }
-        else if (oldPlant.getGameObject().getId() != newPlant.getGameObject().getId())
-        {
-            if (oldPlant.getState() != TitheFarmPlantState.WATERED && newPlant.getState() == TitheFarmPlantState.WATERED)
-            {
-                log.debug("Updated plant (watered)");
-                oldPlant.setState(newPlant.getState());
-                oldPlant.setType(newPlant.getType());
-                oldPlant.setGameObject(newPlant.getGameObject());
-                newPlant.setPlanted(oldPlant.getPlanted());
-                //plants.remove(oldPlant);
-                //plants.add(newPlant);
-            }
-            else
-            {
-                log.debug("Updated plant");
-                oldPlant.setState(newPlant.getState());
-                oldPlant.setType(newPlant.getType());
-                oldPlant.setGameObject(newPlant.getGameObject());
-                oldPlant.setPlanted(newPlant.getPlanted());
-                //plants.remove(oldPlant);
-                //plants.add(newPlant);
-            }
-        }
-    }
-
-    private TitheFarmPlant getPlantFromCollection(GameObject gameObject)
-    {
-        WorldPoint gameObjectLocation = gameObject.getWorldLocation();
-        for (TitheFarmPlant plant : plants)
-        {
-            if (gameObjectLocation.equals(plant.getWorldLocation()))
-            {
-                return plant;
-            }
-        }
-        return null;
-    }
-
-    public int handleTracker(Skill skill) {
-        int startingSkillXp = xpTracker.getXpData(skill, 0);
-        int endingSkillXp = xpTracker.getXpData(skill, tickCount);
-        int xpGained = endingSkillXp - startingSkillXp;
-        return xpGained;
-    }
-
-    public void handlePathing(HttpExchange exchange) throws IOException {
-        int[][] collisionData = client.getCollisionMaps()[client.getPlane()].getFlags();
-        Tile[][] ts = client.getScene().getTiles()[client.getPlane()];
-
-        int baseX = client.getBaseX();
-        int baseY = client.getBaseY();
-
-        JsonArray tiles = new JsonArray();
-        for (int localX = 0; localX < collisionData.length; localX++) {
-            for (int localY = 0; localY < collisionData[localX].length; localY++) {
-                int sceneX = baseX + localX;
-                int sceneY = baseY + localY;
-                JsonObject tile = new JsonObject();
-                tile.addProperty("coordinate", String.format("(%d, %d)", sceneX, sceneY));
-                tile.addProperty("collisionData", collisionData[localX][localY]);
-                double[] clickbox = null;
-
-                clickbox = getTileClickbox(client, ts[localX][localY]);
-
-                if (clickbox != null) {
-                    tile.addProperty("clickbox", String.format("(%f, %f, %f, %f)", clickbox[0], clickbox[1], clickbox[2], clickbox[3]));
-                } else {
-                    tile.addProperty("clickbox", "-1, -1");
-                }
-                tiles.add(tile);
-            }
-        }
-
-        exchange.sendResponseHeaders(200, 0);
-        try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
-            RuneLiteAPI.GSON.toJson(tiles, out);
-        }
-    }
-
-    ;
     public void handleStats(HttpExchange exchange) throws IOException {
         Player player = client.getLocalPlayer();
         JsonArray skills = new JsonArray();
@@ -484,8 +221,7 @@ public class HttpServerPlugin extends Plugin {
 
     public void titheFarmEvents(HttpExchange exchange) throws IOException {
         JsonArray output = new JsonArray();
-        for (TitheFarmPlant plant : getPlants())
-        {
+        for (TitheFarmPlant plant : getPlants()) {
             JsonObject plantStatus = new JsonObject();
             plantStatus.addProperty("state", plant.getState().name());
             plantStatus.addProperty("x", plant.getWorldLocation().getX());
@@ -496,6 +232,28 @@ public class HttpServerPlugin extends Plugin {
         try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
             RuneLiteAPI.GSON.toJson(output, out);
         }
+    }
+
+    private HttpHandler handlerForInv(InventoryID inventoryID) {
+        return exchange -> {
+            Item[] items = invokeAndWait(() -> {
+                ItemContainer itemContainer = client.getItemContainer(inventoryID);
+                if (itemContainer != null) {
+                    return itemContainer.getItems();
+                }
+                return null;
+            });
+
+            if (items == null) {
+                exchange.sendResponseHeaders(204, 0);
+                return;
+            }
+
+            exchange.sendResponseHeaders(200, 0);
+            try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
+                RuneLiteAPI.GSON.toJson(items, out);
+            }
+        };
     }
 
     public void handleEvents(HttpExchange exchange) throws IOException {
@@ -564,8 +322,7 @@ public class HttpServerPlugin extends Plugin {
             if (hoveredTile != null) {
                 mouse.addProperty("hoveredX", hoveredTile.getX());
                 mouse.addProperty("hoveredY", hoveredTile.getY());
-            }
-            else {
+            } else {
                 mouse.addProperty("hoveredX", -1);
                 mouse.addProperty("hoveredY", -1);
             }
@@ -597,90 +354,57 @@ public class HttpServerPlugin extends Plugin {
 
     }
 
-    private HttpHandler handlerForInv(InventoryID inventoryID) {
-        return exchange -> {
-            Item[] items = invokeAndWait(() -> {
-                ItemContainer itemContainer = client.getItemContainer(inventoryID);
-                if (itemContainer != null) {
-                    return itemContainer.getItems();
+    public void handlePathing(HttpExchange exchange) throws IOException {
+        int[][] collisionData = client.getCollisionMaps()[client.getPlane()].getFlags();
+        Tile[][] ts = client.getScene().getTiles()[client.getPlane()];
+
+        int baseX = client.getBaseX();
+        int baseY = client.getBaseY();
+
+        JsonArray tiles = new JsonArray();
+        for (int localX = 0; localX < collisionData.length; localX++) {
+            for (int localY = 0; localY < collisionData[localX].length; localY++) {
+                int sceneX = baseX + localX;
+                int sceneY = baseY + localY;
+                JsonObject tile = new JsonObject();
+                tile.addProperty("coordinate", String.format("(%d, %d)", sceneX, sceneY));
+                tile.addProperty("collisionData", collisionData[localX][localY]);
+                double[] clickbox = null;
+
+                clickbox = getTileClickbox(client, ts[localX][localY]);
+
+                if (clickbox != null) {
+                    tile.addProperty("clickbox", String.format("(%f, %f, %f, %f)", clickbox[0], clickbox[1], clickbox[2], clickbox[3]));
+                } else {
+                    tile.addProperty("clickbox", "-1, -1");
                 }
-                return null;
-            });
-
-            if (items == null) {
-                exchange.sendResponseHeaders(204, 0);
-                return;
+                tiles.add(tile);
             }
+        }
 
-            exchange.sendResponseHeaders(200, 0);
-            try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
-                RuneLiteAPI.GSON.toJson(items, out);
+        exchange.sendResponseHeaders(200, 0);
+        try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
+            RuneLiteAPI.GSON.toJson(tiles, out);
+        }
+    }
+
+    public void handleTempoross(HttpExchange exchange) throws IOException {
+        fishingSpots.forEach((npc, attributes) -> {
+            System.out.println(attributes.getNpcType());
+            System.out.println(attributes.getNpcLocation().toString());
+            if (attributes.getNpcType().equals("Fishing spot")) {
+                System.out.println("fishing spot");
             }
-        };
-    }
+        });
 
-    private <T> T invokeAndWait(Callable<T> r) {
-        try {
-            AtomicReference<T> ref = new AtomicReference<>();
-            Semaphore semaphore = new Semaphore(0);
-            clientThread.invokeLater(() -> {
-                try {
-
-                    ref.set(r.call());
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                } finally {
-                    semaphore.release();
-                }
-            });
-            semaphore.acquire();
-            return ref.get();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+        JsonObject jb = new JsonObject();
+        jb.addProperty("tick", client.getTickCount());
+        jb.addProperty("waveIncoming", waveIsIncoming);
+        jb.addProperty("fishingspots", fishingSpots.size());
+        exchange.sendResponseHeaders(200, 0);
+        try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
+            RuneLiteAPI.GSON.toJson(jb, out);
         }
-    }
-
-    private static double[] getTileClickbox(Client client, Tile tile) {
-        LocalPoint l = tile.getLocalLocation();
-        Polygon p = Perspective.getCanvasTilePoly(client, l);
-        if (p == null) {
-            return null;
-        }
-        if (p.npoints == 0) {
-            return null;
-        }
-        double[] result = new double[4];
-        result[0] = p.getBounds2D().getMinX();
-        result[1] = p.getBounds2D().getMinY();
-        result[2] = p.getBounds2D().getWidth();
-        result[3] = p.getBounds2D().getHeight();
-
-        for (int i = 0; i < result.length; i++) {
-            if (result[i] < 0)
-                return null;
-        }
-        return result;
-    }
-
-    private static double[] getTileClickbox(Client client, LocalPoint tile) {
-        Polygon p = Perspective.getCanvasTilePoly(client, tile);
-        if (p == null) {
-            return null;
-        }
-        if (p.npoints == 0) {
-            return null;
-        }
-        double[] result = new double[4];
-        result[0] = p.getBounds2D().getMinX();
-        result[1] = p.getBounds2D().getMinY();
-        result[2] = p.getBounds2D().getWidth();
-        result[3] = p.getBounds2D().getHeight();
-
-        for (int i = 0; i < result.length; i++) {
-            if (result[i] < 0)
-                return null;
-        }
-        return result;
     }
 
     public void getGameObjectIdHandler(HttpExchange exchange) throws IOException {
@@ -732,168 +456,6 @@ public class HttpServerPlugin extends Plugin {
             out.write(stringBuilder.toString());
         }
 
-    }
-
-    public void getClickboxVerification(HttpExchange exchange) throws IOException {
-        InputStream requestBody = exchange.getRequestBody();
-        InputStreamReader isr = new InputStreamReader(requestBody);
-        BufferedReader br = new BufferedReader(isr);
-        StringBuilder requestBodyBuilder = new StringBuilder();
-        String line;
-        while ((line = br.readLine()) != null) {
-            requestBodyBuilder.append(line);
-        }
-        br.close();
-        isr.close();
-        requestBody.close();
-        JSONObject requestData = null;
-        try {
-            String s = requestBodyBuilder.toString();
-            s = s.substring(1, s.length() - 1).replace("\\", "");
-            requestData = new JSONObject(s); // parse request body as json
-        } catch (Throwable e) {
-            e.printStackTrace();
-        }
-
-        int x = (int) requestData.get("x");
-        int y = (int) requestData.get("y");
-        final int objId;
-        System.out.println(requestData.toString());
-        AtomicBoolean result = new AtomicBoolean(false);
-        if (requestData.has("objectId")) {
-            objId = (int) requestData.get("objectId");
-        }
-        else {
-            objId = -1;
-        }
-        if (this.clientThread != null) {
-            this.clientThread.invoke(() -> {
-                try {
-                    WorldPoint target = new WorldPoint(x, y, client.getPlane());
-                    LocalPoint targetLp = LocalPoint.fromWorld(client, target.getX(), target.getY());
-                    Tile targetTile = client.getScene().getTiles()[client.getPlane()][targetLp.getSceneX()][targetLp.getSceneY()];
-                    GameObject[] objects = targetTile.getGameObjects();
-                    Point mouseP = client.getMouseCanvasPosition();
-                    if (objects != null && objId > -1 && mouseP != null) {
-                        for (GameObject o : objects) {
-                            if (o != null && o.getId() == objId) {
-                                Shape p = o.getConvexHull();
-                                if (p != null) {
-                                    if (p.contains(mouseP.getX(), mouseP.getY())) {
-                                        result.set(true);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    else {
-                        Polygon p = Perspective.getCanvasTilePoly(client, targetLp);
-                        if (p != null) {
-                            if (p.contains(mouseP.getX(), mouseP.getY())) {
-                                result.set(true);
-                            }
-                        }
-                    }
-                    JsonObject response = new JsonObject();
-                    int r = result.get() ? 1 : 0;
-                    response.addProperty("result", r);
-                    exchange.sendResponseHeaders(200, 0);
-                    try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
-                        RuneLiteAPI.GSON.toJson(response, out);
-                    }
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            });
-        }
-    }
-
-    public void getMinimapLocation(HttpExchange exchange) throws IOException {
-        InputStream requestBody = exchange.getRequestBody();
-        InputStreamReader isr = new InputStreamReader(requestBody);
-        BufferedReader br = new BufferedReader(isr);
-        StringBuilder requestBodyBuilder = new StringBuilder();
-        String line;
-        while ((line = br.readLine()) != null) {
-            requestBodyBuilder.append(line);
-        }
-        br.close();
-        isr.close();
-        requestBody.close();
-        JSONObject requestData = null;
-        try {
-            String s = requestBodyBuilder.toString();
-            s = s.substring(1, s.length() - 1).replace("\\", "");
-            requestData = new JSONObject(s); // parse request body as json
-        } catch (Throwable e) {
-            e.printStackTrace();
-        }
-        int x = (int) requestData.get("x");
-        int y = (int) requestData.get("y");
-        if (this.clientThread != null) {
-            this.clientThread.invoke(() -> {
-                try {
-                    LocalPoint tile = LocalPoint.fromWorld(client, x, y);
-                    System.out.println(tile.toString());
-                    Point loc = Perspective.localToMinimap(client, tile);
-                    System.out.println(loc.toString());
-                    JsonObject obj = new JsonObject();
-                    obj.addProperty("x", loc.getX());
-                    obj.addProperty("y", loc.getY());
-                    exchange.sendResponseHeaders(200, 0);
-                    try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
-                        RuneLiteAPI.GSON.toJson(obj, out);
-                    }
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            });
-        }
-        else {System.out.println("clientThread is null");}
-
-
-    }
-
-    public void getClickbox(HttpExchange exchange) throws IOException {
-        InputStream requestBody = exchange.getRequestBody();
-        InputStreamReader isr = new InputStreamReader(requestBody);
-        BufferedReader br = new BufferedReader(isr);
-        StringBuilder requestBodyBuilder = new StringBuilder();
-        String line;
-        while ((line = br.readLine()) != null) {
-            requestBodyBuilder.append(line);
-        }
-        //System.out.println(requestBodyBuilder.toString());
-        //System.out.println(requestBodyBuilder.charAt(1));
-        br.close();
-        isr.close();
-        requestBody.close();
-        JSONObject requestData = null;
-        try {
-            String s = requestBodyBuilder.toString();
-            s = s.substring(1, s.length() - 1).replace("\\", "");
-            requestData = new JSONObject(s); // parse request body as json
-            //System.out.println(requestData.toString());
-        } catch (Throwable e) {
-            e.printStackTrace();
-        }
-        int x = (int)requestData.get("x");
-        int y = (int)requestData.get("y");
-        LocalPoint tile = LocalPoint.fromWorld(client, x, y);
-        double[] clickbox = getTileClickbox(client, tile);
-        if (clickbox == null) {
-            exchange.sendResponseHeaders(204, 0);
-            return;
-        }
-        JsonObject object = new JsonObject();
-        object.addProperty("x", clickbox[0]);
-        object.addProperty("y", clickbox[1]);
-        object.addProperty("width", clickbox[2]);
-        object.addProperty("height", clickbox[3]);
-        exchange.sendResponseHeaders(200, 0);
-        try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
-            RuneLiteAPI.GSON.toJson(object, out);
-        }
     }
 
     public void findPath(HttpExchange exchange) throws IOException {
@@ -975,6 +537,167 @@ public class HttpServerPlugin extends Plugin {
 
     }
 
+    public void getClickbox(HttpExchange exchange) throws IOException {
+        InputStream requestBody = exchange.getRequestBody();
+        InputStreamReader isr = new InputStreamReader(requestBody);
+        BufferedReader br = new BufferedReader(isr);
+        StringBuilder requestBodyBuilder = new StringBuilder();
+        String line;
+        while ((line = br.readLine()) != null) {
+            requestBodyBuilder.append(line);
+        }
+        //System.out.println(requestBodyBuilder.toString());
+        //System.out.println(requestBodyBuilder.charAt(1));
+        br.close();
+        isr.close();
+        requestBody.close();
+        JSONObject requestData = null;
+        try {
+            String s = requestBodyBuilder.toString();
+            s = s.substring(1, s.length() - 1).replace("\\", "");
+            requestData = new JSONObject(s); // parse request body as json
+            //System.out.println(requestData.toString());
+        } catch (Throwable e) {
+            e.printStackTrace();
+        }
+        int x = (int) requestData.get("x");
+        int y = (int) requestData.get("y");
+        LocalPoint tile = LocalPoint.fromWorld(client, x, y);
+        double[] clickbox = getTileClickbox(client, tile);
+        if (clickbox == null) {
+            exchange.sendResponseHeaders(204, 0);
+            return;
+        }
+        JsonObject object = new JsonObject();
+        object.addProperty("x", clickbox[0]);
+        object.addProperty("y", clickbox[1]);
+        object.addProperty("width", clickbox[2]);
+        object.addProperty("height", clickbox[3]);
+        exchange.sendResponseHeaders(200, 0);
+        try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
+            RuneLiteAPI.GSON.toJson(object, out);
+        }
+    }
+
+    public void getMinimapLocation(HttpExchange exchange) throws IOException {
+        InputStream requestBody = exchange.getRequestBody();
+        InputStreamReader isr = new InputStreamReader(requestBody);
+        BufferedReader br = new BufferedReader(isr);
+        StringBuilder requestBodyBuilder = new StringBuilder();
+        String line;
+        while ((line = br.readLine()) != null) {
+            requestBodyBuilder.append(line);
+        }
+        br.close();
+        isr.close();
+        requestBody.close();
+        JSONObject requestData = null;
+        try {
+            String s = requestBodyBuilder.toString();
+            s = s.substring(1, s.length() - 1).replace("\\", "");
+            requestData = new JSONObject(s); // parse request body as json
+        } catch (Throwable e) {
+            e.printStackTrace();
+        }
+        int x = (int) requestData.get("x");
+        int y = (int) requestData.get("y");
+        if (this.clientThread != null) {
+            this.clientThread.invoke(() -> {
+                try {
+                    LocalPoint tile = LocalPoint.fromWorld(client, x, y);
+                    System.out.println(tile.toString());
+                    Point loc = Perspective.localToMinimap(client, tile);
+                    System.out.println(loc.toString());
+                    JsonObject obj = new JsonObject();
+                    obj.addProperty("x", loc.getX());
+                    obj.addProperty("y", loc.getY());
+                    exchange.sendResponseHeaders(200, 0);
+                    try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
+                        RuneLiteAPI.GSON.toJson(obj, out);
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            });
+        } else {
+            System.out.println("clientThread is null");
+        }
+
+
+    }
+
+    public void getClickboxVerification(HttpExchange exchange) throws IOException {
+        InputStream requestBody = exchange.getRequestBody();
+        InputStreamReader isr = new InputStreamReader(requestBody);
+        BufferedReader br = new BufferedReader(isr);
+        StringBuilder requestBodyBuilder = new StringBuilder();
+        String line;
+        while ((line = br.readLine()) != null) {
+            requestBodyBuilder.append(line);
+        }
+        br.close();
+        isr.close();
+        requestBody.close();
+        JSONObject requestData = null;
+        try {
+            String s = requestBodyBuilder.toString();
+            s = s.substring(1, s.length() - 1).replace("\\", "");
+            requestData = new JSONObject(s); // parse request body as json
+        } catch (Throwable e) {
+            e.printStackTrace();
+        }
+
+        int x = (int) requestData.get("x");
+        int y = (int) requestData.get("y");
+        final int objId;
+        System.out.println(requestData.toString());
+        AtomicBoolean result = new AtomicBoolean(false);
+        if (requestData.has("objectId")) {
+            objId = (int) requestData.get("objectId");
+        } else {
+            objId = -1;
+        }
+        if (this.clientThread != null) {
+            this.clientThread.invoke(() -> {
+                try {
+                    WorldPoint target = new WorldPoint(x, y, client.getPlane());
+                    LocalPoint targetLp = LocalPoint.fromWorld(client, target.getX(), target.getY());
+                    Tile targetTile = client.getScene().getTiles()[client.getPlane()][targetLp.getSceneX()][targetLp.getSceneY()];
+                    GameObject[] objects = targetTile.getGameObjects();
+                    Point mouseP = client.getMouseCanvasPosition();
+                    if (objects != null && objId > -1 && mouseP != null) {
+                        for (GameObject o : objects) {
+                            if (o != null && o.getId() == objId) {
+                                Shape p = o.getConvexHull();
+                                if (p != null) {
+                                    if (p.contains(mouseP.getX(), mouseP.getY())) {
+                                        result.set(true);
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        Polygon p = Perspective.getCanvasTilePoly(client, targetLp);
+                        if (p != null) {
+                            if (p.contains(mouseP.getX(), mouseP.getY())) {
+                                result.set(true);
+                            }
+                        }
+                    }
+                    JsonObject response = new JsonObject();
+                    int r = result.get() ? 1 : 0;
+                    response.addProperty("result", r);
+                    exchange.sendResponseHeaders(200, 0);
+                    try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
+                        RuneLiteAPI.GSON.toJson(response, out);
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            });
+        }
+    }
+
     public void getAllReachableTiles(HttpExchange exchange) throws IOException {
         WorldPoint pos = client.getLocalPlayer().getWorldLocation();
         Pathfinder p = new Pathfinder(new LocalCollisionMap(client), client, client.getLocalPlayer().getWorldLocation(), pos);
@@ -986,8 +709,7 @@ public class HttpServerPlugin extends Plugin {
             int y = point.getY();
             int difX = Math.abs(pos.getX() - x);
             int difY = Math.abs(pos.getY() - y);
-            if (difX < 10 && difY < 10)
-            {
+            if (difX < 10 && difY < 10) {
                 stringBuilder.append("(").append(x).append(", ").append(y).append("), ");
             }
 
@@ -1001,6 +723,257 @@ public class HttpServerPlugin extends Plugin {
         try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
             out.write(stringBuilder.toString());
         }
+    }
+
+    private <T> T invokeAndWait(Callable<T> r) {
+        try {
+            AtomicReference<T> ref = new AtomicReference<>();
+            Semaphore semaphore = new Semaphore(0);
+            clientThread.invokeLater(() -> {
+                try {
+
+                    ref.set(r.call());
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                } finally {
+                    semaphore.release();
+                }
+            });
+            semaphore.acquire();
+            return ref.get();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    ;
+
+    private static double[] getTileClickbox(Client client, Tile tile) {
+        LocalPoint l = tile.getLocalLocation();
+        Polygon p = Perspective.getCanvasTilePoly(client, l);
+        if (p == null) {
+            return null;
+        }
+        if (p.npoints == 0) {
+            return null;
+        }
+        double[] result = new double[4];
+        result[0] = p.getBounds2D().getMinX();
+        result[1] = p.getBounds2D().getMinY();
+        result[2] = p.getBounds2D().getWidth();
+        result[3] = p.getBounds2D().getHeight();
+
+        for (int i = 0; i < result.length; i++) {
+            if (result[i] < 0)
+                return null;
+        }
+        return result;
+    }
+
+    private static double[] getTileClickbox(Client client, LocalPoint tile) {
+        Polygon p = Perspective.getCanvasTilePoly(client, tile);
+        if (p == null) {
+            return null;
+        }
+        if (p.npoints == 0) {
+            return null;
+        }
+        double[] result = new double[4];
+        result[0] = p.getBounds2D().getMinX();
+        result[1] = p.getBounds2D().getMinY();
+        result[2] = p.getBounds2D().getWidth();
+        result[3] = p.getBounds2D().getHeight();
+
+        for (int i = 0; i < result.length; i++) {
+            if (result[i] < 0)
+                return null;
+        }
+        return result;
+    }
+
+    @Subscribe
+    public void onMenuOptionClicked(MenuOptionClicked menuOptionClicked) {
+        JsonObject jb = new JsonObject();
+        jb.addProperty("option", menuOptionClicked.getMenuOption());
+        String target = menuOptionClicked.getMenuTarget();
+        Tile hoveredTarget = client.getSelectedSceneTile();
+        if (hoveredTarget != null) {
+            jb.addProperty("targetLocation", "(" + hoveredTarget.getWorldLocation().getX() + ", " + hoveredTarget.getWorldLocation().getY() + ")");
+        } else {
+            jb.addProperty("targetLocation", "null");
+        }
+        jb.addProperty("target", menuOptionClicked.getMenuTarget());
+        jb.addProperty("id", menuOptionClicked.getId());
+        jb.addProperty("action", menuOptionClicked.getMenuAction().toString());
+        jb.addProperty("tick", client.getTickCount());
+        lastAction = jb;
+        switch (menuOptionClicked.getMenuAction()) {
+            case WIDGET_TARGET_ON_GAME_OBJECT:
+                //System.out.println("widget target on game object");
+                //System.out.println(menuOptionClicked.getParam0());
+                //System.out.println(menuOptionClicked.getParam1());
+                break;
+            case GAME_OBJECT_FIRST_OPTION:
+            case GAME_OBJECT_SECOND_OPTION:
+            case GAME_OBJECT_THIRD_OPTION:
+            case WALK:
+                Tile hovered = client.getSelectedSceneTile();
+                if (hovered != null) {
+                    hoveredTile = hovered.getWorldLocation();
+                }
+                break;
+        }
+    }
+
+    @Subscribe
+    public void onChatMessage(ChatMessage chatMessage) {
+        if (chatMessage.getType() != ChatMessageType.GAMEMESSAGE) {
+            return;
+        }
+        String message = chatMessage.getMessage().toLowerCase();
+        if (message.contains(WAVE_INCOMING_MESSAGE)) {
+            waveIsIncoming = true;
+        } else if (message.contains(WAVE_END_SAFE)) {
+            waveIsIncoming = false;
+        }
+    }
+
+    @Subscribe
+    public void onNpcSpawned(NpcSpawned npcSpawned) {
+        if (NpcID.FISHING_SPOT_10569 == npcSpawned.getNpc().getId()) {
+            fishingSpots.put(npcSpawned.getNpc(), new NPCAttributes(npcSpawned.getNpc().getName(), npcSpawned.getNpc().getId(), npcSpawned.getNpc().getWorldLocation(), npcSpawned.getNpc().getIndex()));
+        } else if (NpcID.FISHING_SPOT_10568 == npcSpawned.getNpc().getId()) {
+            fishingSpots.put(npcSpawned.getNpc(), new NPCAttributes(npcSpawned.getNpc().getName(), npcSpawned.getNpc().getId(), npcSpawned.getNpc().getWorldLocation(), npcSpawned.getNpc().getIndex()));
+        }
+    }
+
+    @Subscribe
+    public void onNpcDespawned(NpcDespawned npcDespawned) {
+        fishingSpots.remove(npcDespawned.getNpc());
+    }
+
+    public Client getClient() {
+        return client;
+    }
+
+    @Subscribe
+    public void onGameTick(GameTick tick) {
+        currentTime = System.currentTimeMillis();
+        plants.removeIf(plant -> plant.getPlantTimeRelative() == 1);
+        xpTracker.update();
+        if (client.getCameraZ() != 333) {
+            clientThread.invokeLater(() -> client.runScript(ScriptID.CAMERA_DO_ZOOM, 333, 333));
+        }
+        int skill_count = 0;
+        for (Skill skill : Skill.values()) {
+            if (skill == Skill.OVERALL) {
+                continue;
+            }
+            int xp_gained = handleTracker(skill);
+            xp_gained_skills[skill_count] = xp_gained;
+            skill_count++;
+        }
+        tickCount++;
+        // Tempoross:
+    }
+
+    public int handleTracker(Skill skill) {
+        int startingSkillXp = xpTracker.getXpData(skill, 0);
+        int endingSkillXp = xpTracker.getXpData(skill, tickCount);
+        int xpGained = endingSkillXp - startingSkillXp;
+        return xpGained;
+    }
+
+    public void handleMovement(HttpExchange exchange) throws IOException {
+        JsonObject jb = new JsonObject();
+        jb.addProperty("tick", client.getTickCount());
+        jb.addProperty("destinationX", destinationTile.getX());
+        jb.addProperty("destinationY", destinationTile.getY());
+        exchange.sendResponseHeaders(200, 0);
+        try (OutputStreamWriter out = new OutputStreamWriter(exchange.getResponseBody())) {
+            RuneLiteAPI.GSON.toJson(jb, out);
+        }
+    }
+
+    TileObject findTileObject(int x, int y, int id) {
+        Scene scene = client.getScene();
+        Tile[][][] tiles = scene.getTiles();
+        Tile tile = tiles[client.getPlane()][x][y];
+        if (tile != null) {
+            for (GameObject gameObject : tile.getGameObjects()) {
+                if (gameObject != null && gameObject.getId() == id) {
+                    return gameObject;
+                }
+            }
+
+            WallObject wallObject = tile.getWallObject();
+            if (wallObject != null && wallObject.getId() == id) {
+                return wallObject;
+            }
+
+            DecorativeObject decorativeObject = tile.getDecorativeObject();
+            if (decorativeObject != null && decorativeObject.getId() == id) {
+                return decorativeObject;
+            }
+
+            GroundObject groundObject = tile.getGroundObject();
+            if (groundObject != null && groundObject.getId() == id) {
+                return groundObject;
+            }
+        }
+        return null;
+    }
+
+    @Subscribe
+    public void onGameObjectSpawned(GameObjectSpawned event) {
+        GameObject gameObject = event.getGameObject();
+        TitheFarmPlantType type = TitheFarmPlantType.getPlantType(gameObject.getId());
+        if (type == null) {
+            return;
+        }
+
+        TitheFarmPlantState state = TitheFarmPlantState.getState(gameObject.getId());
+
+        TitheFarmPlant newPlant = new TitheFarmPlant(state, type, gameObject);
+        TitheFarmPlant oldPlant = getPlantFromCollection(gameObject);
+
+        if (oldPlant == null && newPlant.getType() != TitheFarmPlantType.EMPTY) {
+            log.debug("Added plant {}", newPlant);
+            plants.add(newPlant);
+        } else if (oldPlant == null) {
+            return;
+        } else if (newPlant.getType() == TitheFarmPlantType.EMPTY) {
+            log.debug("Removed plant {}", oldPlant);
+            plants.remove(oldPlant);
+        } else if (oldPlant.getGameObject().getId() != newPlant.getGameObject().getId()) {
+            if (oldPlant.getState() != TitheFarmPlantState.WATERED && newPlant.getState() == TitheFarmPlantState.WATERED) {
+                log.debug("Updated plant (watered)");
+                oldPlant.setState(newPlant.getState());
+                oldPlant.setType(newPlant.getType());
+                oldPlant.setGameObject(newPlant.getGameObject());
+                newPlant.setPlanted(oldPlant.getPlanted());
+                //plants.remove(oldPlant);
+                //plants.add(newPlant);
+            } else {
+                log.debug("Updated plant");
+                oldPlant.setState(newPlant.getState());
+                oldPlant.setType(newPlant.getType());
+                oldPlant.setGameObject(newPlant.getGameObject());
+                oldPlant.setPlanted(newPlant.getPlanted());
+                //plants.remove(oldPlant);
+                //plants.add(newPlant);
+            }
+        }
+    }
+
+    private TitheFarmPlant getPlantFromCollection(GameObject gameObject) {
+        WorldPoint gameObjectLocation = gameObject.getWorldLocation();
+        for (TitheFarmPlant plant : plants) {
+            if (gameObjectLocation.equals(plant.getWorldLocation())) {
+                return plant;
+            }
+        }
+        return null;
     }
 
     public Map<String, List<Double>> findGoblins() {
