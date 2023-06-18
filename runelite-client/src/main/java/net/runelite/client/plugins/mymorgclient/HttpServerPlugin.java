@@ -287,9 +287,14 @@ public class HttpServerPlugin extends Plugin {
     }
 
     public void handleTempoross(HttpExchange exchange) throws IOException {
-        for (NPC npc : fishingSpots.keySet()) {
-            WorldPoint spotLocation = npc.getWorldLocation();
-        }
+        fishingSpots.forEach((npc, attributes) -> {
+            System.out.println(attributes.getNpcType());
+            System.out.println(attributes.getNpcLocation().toString());
+            System.out.println(attributes.getNpcInstant().toString());
+            if (attributes.getNpcType().equals("Fishing spot")) {
+                System.out.println("fishing spot");
+            }
+        });
 
         JsonObject jb = new JsonObject();
         jb.addProperty("tick", client.getTickCount());

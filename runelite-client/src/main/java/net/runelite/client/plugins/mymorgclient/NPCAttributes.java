@@ -7,15 +7,15 @@ import java.time.Instant;
 
 public class NPCAttributes {
     @Getter
-    private String npcType;
+    private String NpcType;
     @Getter
-    private Instant npcInstant;
+    private Instant NpcInstant;
     @Getter
-    private WorldPoint npcLocation;
+    private WorldPoint NpcLocation;
 
     public NPCAttributes(String npcType, Instant npcInstant, WorldPoint npcLocation) {
-        this.npcType = npcType;
-        this.npcInstant = npcInstant;
-        this.npcLocation = npcLocation;
+        this.NpcType = npcType;
+        this.NpcInstant = npcInstant;
+        this.NpcLocation = npcLocation;
     }
 }
