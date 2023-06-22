@@ -4,7 +4,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.gson.*;
 import lombok.Getter;
 import net.runelite.api.Point;
-import net.runelite.api.coords.Direction;
 import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.coords.WorldArea;
 import net.runelite.api.coords.WorldPoint;
@@ -14,12 +13,9 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
-import net.runelite.client.plugins.mymorgclient.NPCAttributes;
-
 import java.awt.*;
 import java.io.*;
 import java.net.InetSocketAddress;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.List;
@@ -39,11 +35,9 @@ import net.runelite.client.game.walking.*;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.http.api.RuneLiteAPI;
-import org.apache.commons.lang3.tuple.Pair;
 import org.json.JSONObject;
 
 import net.runelite.client.plugins.mymorgclient.Fighter;
-
 
 @PluginDescriptor(
         name = "Morg HTTP Client",
@@ -534,7 +528,6 @@ public class HttpServerPlugin extends Plugin {
                 out.write(stringBuilder.toString());
             }
         }
-
     }
 
     public void getClickbox(HttpExchange exchange) throws IOException {
@@ -622,8 +615,6 @@ public class HttpServerPlugin extends Plugin {
         } else {
             System.out.println("clientThread is null");
         }
-
-
     }
 
     public void getClickboxVerification(HttpExchange exchange) throws IOException {

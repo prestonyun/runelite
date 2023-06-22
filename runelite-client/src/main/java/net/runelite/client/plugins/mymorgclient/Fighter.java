@@ -9,6 +9,8 @@ import net.runelite.api.NPC;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.http.api.RuneLiteAPI;
 
+import java.awt.*;
+import java.awt.geom.Rectangle2D;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.util.HashMap;
@@ -32,6 +34,9 @@ public class Fighter {
         for (NPC npc : npcs) {
             if (npc.getName() != null) {
                 if (npc.getName().equals("Goblin")) {
+                    Rectangle2D p = npc.getConvexHull().getBounds2D();
+
+                    jb.addProperty(String.valueOf(npc.getId()), npc.getWorldLocation().toString() + " " + npc.getConvexHull().getBounds2D());
                     targets.put(npc, new NPCAttributes(npc.getName(), npc.getId(), npc.getWorldLocation(), npc.getIndex()));
                 }
             }
