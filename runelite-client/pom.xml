@@ -137,11 +137,6 @@
 			<version>5.9.0</version>
 		</dependency>
 		<dependency>
-			<groupId>net.java.dev.jna</groupId>
-			<artifactId>jna-platform</artifactId>
-			<version>5.9.0</version>
-		</dependency>
-		<dependency>
 			<groupId>com.google.code.findbugs</groupId>
 			<artifactId>jsr305</artifactId>
 		</dependency>
@@ -335,6 +330,11 @@
             <version>2.9.8</version>
             <scope>compile</scope>
         </dependency>
+		<dependency>
+			<groupId>net.java.dev.jna</groupId>
+			<artifactId>jna-platform</artifactId>
+			<version>5.13.0</version>
+		</dependency>
     </dependencies>
 
 	<dependencyManagement>
@@ -435,9 +435,13 @@
 				</executions>
 				<configuration>
 					<skip>${jarsigner.skip}</skip>
+					<!--suppress UnresolvedMavenProperty -->
 					<keystore>${jarsigner.keystore}</keystore>
+					<!--suppress UnresolvedMavenProperty -->
 					<alias>${jarsigner.alias}</alias>
+					<!--suppress UnresolvedMavenProperty -->
 					<storepass>${jarsigner.storepass}</storepass>
+					<!--suppress UnresolvedMavenProperty -->
 					<keypass>${jarsigner.keypass}</keypass>
 				</configuration>
 			</plugin>
