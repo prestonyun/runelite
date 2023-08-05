@@ -270,12 +270,28 @@ public class BankPlugin extends Plugin
 	@Subscribe
 	public void onWidgetLoaded(WidgetLoaded event)
 	{
-		if (event.getGroupId() != WidgetID.SEED_VAULT_GROUP_ID || !config.seedVaultValue())
+		if (event.getGroupId() == WidgetID.SEED_VAULT_GROUP_ID && config.seedVaultValue())
 		{
-			return;
+			updateSeedVaultTotal();
 		}
-
-		updateSeedVaultTotal();
+		else if (event.getGroupId() == WidgetID.CLANRANK_POPUP // also the Jagex account ad in the bank
+			&& config.blockJagexAccountAd())
+		{
+			var wn = client.getComponentTable()
+				.get(WidgetInfo.BANK_POPUP.getId());
+			if (wn != null)
+			{
+				clientThread.invokeLater(() ->
+				{
+					var w = client.getWidget(WidgetID.CLANRANK_POPUP, 4).getChild(1);
+					// this is also re-used by the clear all bank fillers popup
+					if (w.getText().equals("Want more bank space?"))
+					{
+						client.closeInterface(wn, true);
+					}
+				});
+			}
+		}
 	}
 
 	@Subscribe
