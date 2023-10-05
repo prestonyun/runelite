@@ -357,7 +357,7 @@ class ProfilePanel extends PluginPanel
 				private String filter(String in)
 				{
 					// characters commonly forbidden in file names
-					return CharMatcher.noneOf("/\\<>:\"|?*\0")
+					return CharMatcher.noneOf("/\\<>:\"|?*\r\n\0")
 						.retainFrom(in);
 				}
 			});
@@ -632,7 +632,7 @@ class ProfilePanel extends PluginPanel
 				return;
 			}
 
-			log.info("Renaming profile {} to {}", profile, name);
+			log.info("Renaming profile {} ({}) to {}", profile, profile.getId(), name);
 
 			lock.renameProfile(profile, name);
 			configManager.renameProfile(profile, name);
