@@ -174,11 +174,10 @@ class XpPanel extends PluginPanel
 
 		return new HttpUrl.Builder()
 			.scheme("https")
-			.host(worldTypes.contains(WorldType.SEASONAL) ? "seasonal.wiseoldman.net" : "wiseoldman.net")
+			.host(worldTypes.contains(WorldType.SEASONAL) ? "league.wiseoldman.net" : "wiseoldman.net")
 			.addPathSegment("players")
 			.addPathSegment(player.getName())
 			.addPathSegment("gained")
-			.addPathSegment("skilling")
 			.addQueryParameter("metric", skill == null ? "overall" : skill.getName().toLowerCase())
 			.addQueryParameter("period", "week")
 			.build()
@@ -192,21 +191,14 @@ class XpPanel extends PluginPanel
 
 	void resetSkill(Skill skill)
 	{
-		XpInfoBox xpInfoBox = infoBoxes.get(skill);
-		if (xpInfoBox != null)
-		{
-			xpInfoBox.reset();
-		}
+		final XpInfoBox xpInfoBox = infoBoxes.get(skill);
+		xpInfoBox.reset();
 	}
 
 	void updateSkillExperience(boolean updated, boolean paused, Skill skill, XpSnapshotSingle xpSnapshotSingle)
 	{
 		final XpInfoBox xpInfoBox = infoBoxes.get(skill);
-
-		if (xpInfoBox != null)
-		{
-			xpInfoBox.update(updated, paused, xpSnapshotSingle);
-		}
+		xpInfoBox.update(updated, paused, xpSnapshotSingle);
 	}
 
 	void updateTotal(XpSnapshotSingle xpSnapshotTotal)
@@ -231,5 +223,4 @@ class XpPanel extends PluginPanel
 		overallExpGained.setText(XpInfoBox.htmlLabel("Gained: ", xpSnapshotTotal.getXpGainedInSession()));
 		overallExpHour.setText(XpInfoBox.htmlLabel("Per hour: ", xpSnapshotTotal.getXpPerHour()));
 	}
-
 }

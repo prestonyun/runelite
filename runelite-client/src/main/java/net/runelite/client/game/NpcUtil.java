@@ -65,6 +65,28 @@ public class NpcUtil
 	public boolean isDying(final NPC npc)
 	{
 		final int id = npc.getId();
+
+		if (runtimeConfig != null)
+		{
+			Set<Integer> ignoredNpcs = runtimeConfig.getIgnoreDeadNpcs();
+			if (ignoredNpcs != null && ignoredNpcs.contains(id))
+			{
+				return false;
+			}
+
+			Set<Integer> forceDeadNpcs = runtimeConfig.getForceDeadNpcs();
+			if (forceDeadNpcs != null && forceDeadNpcs.contains(id))
+			{
+				return true;
+			}
+
+			Set<Integer> healthCheckDeadNpcs = runtimeConfig.getHealthCheckDeadNpcs();
+			if (healthCheckDeadNpcs != null && healthCheckDeadNpcs.contains(id))
+			{
+				return npc.getHealthRatio() == 0;
+			}
+		}
+
 		switch (id)
 		{
 			// These NPCs hit 0hp but don't actually die
@@ -86,6 +108,7 @@ public class NpcUtil
 			case NpcID.SMALL_LIZARD:
 			case NpcID.SMALL_LIZARD_463:
 			case NpcID.GROWTHLING:
+			case NpcID.BEE_SWARM:
 			// These NPCs die, but transform into forms which are attackable or interactable, so it would be jarring for
 			// them to be considered dead when reaching 0hp.
 			case NpcID.KALPHITE_QUEEN_963:
@@ -131,6 +154,8 @@ public class NpcUtil
 			case NpcID.RUNITE_ROCKS:
 			case NpcID.STRANGE_CREATURE_12076: // Secrets of the North transitioning to Jhallan
 			case NpcID.BOUNCER_3509:
+			// Tutorial island giant rats respawn instantly.
+			case NpcID.GIANT_RAT_3313:
 			// Agrith Naar restores health upon reaching 0hp if the player does not have Silverlight
 			// equipped, or moved away immediately after applying the killing blow.
 			case NpcID.AGRITH_NAAR:
@@ -154,28 +179,10 @@ public class NpcUtil
 				return true;
 			case NpcID.ZALCANO_9050:
 				return npc.isDead();
+			// Amoxliatl has a nonstandard health bar which isDead() doesn't work with.
+			case NpcID.AMOXLIATL:
+				return npc.getHealthRatio() == 0;
 			default:
-				if (runtimeConfig != null)
-				{
-					Set<Integer> ignoredNpcs = runtimeConfig.getIgnoreDeadNpcs();
-					if (ignoredNpcs != null && ignoredNpcs.contains(id))
-					{
-						return false;
-					}
-
-					Set<Integer> forceDeadNpcs = runtimeConfig.getForceDeadNpcs();
-					if (forceDeadNpcs != null && forceDeadNpcs.contains(id))
-					{
-						return true;
-					}
-
-					Set<Integer> pureIsDeadNpcs = runtimeConfig.getNonAttackNpcs();
-					if (pureIsDeadNpcs != null && pureIsDeadNpcs.contains(id))
-					{
-						return npc.isDead();
-					}
-				}
-
 				final NPCComposition npcComposition = npc.getTransformedComposition();
 				if (npcComposition == null)
 				{

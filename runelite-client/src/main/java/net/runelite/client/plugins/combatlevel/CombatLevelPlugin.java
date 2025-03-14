@@ -33,15 +33,15 @@ import java.util.regex.Pattern;
 import javax.inject.Inject;
 import net.runelite.api.Client;
 import net.runelite.api.Experience;
-import net.runelite.api.GameState;
 import net.runelite.api.ScriptID;
 import net.runelite.api.Skill;
 import net.runelite.api.WorldType;
-import net.runelite.api.events.GameTick;
+import net.runelite.api.events.ClientTick;
 import net.runelite.api.events.ScriptPostFired;
 import net.runelite.api.events.ScriptPreFired;
+import net.runelite.api.events.StatChanged;
+import net.runelite.api.widgets.ComponentID;
 import net.runelite.api.widgets.Widget;
-import net.runelite.api.widgets.WidgetInfo;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
@@ -78,6 +78,8 @@ public class CombatLevelPlugin extends Plugin
 	@Inject
 	private OverlayManager overlayManager;
 
+	private String combatLevelStr;
+
 	@Provides
 	CombatLevelConfig provideConfig(ConfigManager configManager)
 	{
@@ -87,6 +89,17 @@ public class CombatLevelPlugin extends Plugin
 	@Override
 	protected void startUp() throws Exception
 	{
+		double combatLevel = Experience.getCombatLevelPrecise(
+			client.getRealSkillLevel(Skill.ATTACK),
+			client.getRealSkillLevel(Skill.STRENGTH),
+			client.getRealSkillLevel(Skill.DEFENCE),
+			client.getRealSkillLevel(Skill.HITPOINTS),
+			client.getRealSkillLevel(Skill.MAGIC),
+			client.getRealSkillLevel(Skill.RANGED),
+			client.getRealSkillLevel(Skill.PRAYER)
+		);
+		combatLevelStr = DECIMAL_FORMAT.format(combatLevel);
+
 		overlayManager.add(overlay);
 
 		if (config.wildernessAttackLevelRange())
@@ -99,7 +112,7 @@ public class CombatLevelPlugin extends Plugin
 	protected void shutDown() throws Exception
 	{
 		overlayManager.remove(overlay);
-		Widget combatLevelWidget = client.getWidget(WidgetInfo.COMBAT_LEVEL);
+		Widget combatLevelWidget = client.getWidget(ComponentID.COMBAT_LEVEL);
 
 		if (combatLevelWidget != null)
 		{
@@ -115,20 +128,13 @@ public class CombatLevelPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onGameTick(GameTick event)
+	private void onStatChanged(StatChanged statChanged)
 	{
-		if (client.getGameState() != GameState.LOGGED_IN)
+		Skill skill = statChanged.getSkill();
+		if (skill == Skill.ATTACK || skill == Skill.DEFENCE || skill == Skill.STRENGTH || skill == Skill.HITPOINTS
+			|| skill == Skill.MAGIC || skill == Skill.PRAYER || skill == Skill.RANGED)
 		{
-			return;
-		}
-
-		Widget combatLevelWidget = client.getWidget(WidgetInfo.COMBAT_LEVEL);
-		if (combatLevelWidget == null || !config.showPreciseCombatLevel())
-		{
-			return;
-		}
-
-		double combatLevelPrecise = Experience.getCombatLevelPrecise(
+			double combatLevel = Experience.getCombatLevelPrecise(
 				client.getRealSkillLevel(Skill.ATTACK),
 				client.getRealSkillLevel(Skill.STRENGTH),
 				client.getRealSkillLevel(Skill.DEFENCE),
@@ -136,9 +142,21 @@ public class CombatLevelPlugin extends Plugin
 				client.getRealSkillLevel(Skill.MAGIC),
 				client.getRealSkillLevel(Skill.RANGED),
 				client.getRealSkillLevel(Skill.PRAYER)
-		);
+			);
+			combatLevelStr = DECIMAL_FORMAT.format(combatLevel);
+		}
+	}
 
-		combatLevelWidget.setText("Combat Lvl: " + DECIMAL_FORMAT.format(combatLevelPrecise));
+	@Subscribe
+	private void onClientTick(ClientTick tick)
+	{
+		Widget combatLevelWidget = client.getWidget(ComponentID.COMBAT_LEVEL);
+		if (combatLevelWidget == null || !config.showPreciseCombatLevel())
+		{
+			return;
+		}
+
+		combatLevelWidget.setText("Combat Lvl: " + combatLevelStr);
 	}
 
 	@Subscribe
@@ -214,7 +232,7 @@ public class CombatLevelPlugin extends Plugin
 
 	private void appendAttackLevelRangeText()
 	{
-		final Widget wildernessLevelWidget = client.getWidget(WidgetInfo.PVP_WILDERNESS_LEVEL);
+		final Widget wildernessLevelWidget = client.getWidget(ComponentID.PVP_WILDERNESS_LEVEL);
 		if (wildernessLevelWidget == null)
 		{
 			return;
@@ -241,7 +259,7 @@ public class CombatLevelPlugin extends Plugin
 			return;
 		}
 
-		final Widget wildernessLevelWidget = client.getWidget(WidgetInfo.PVP_WILDERNESS_LEVEL);
+		final Widget wildernessLevelWidget = client.getWidget(ComponentID.PVP_WILDERNESS_LEVEL);
 		if (wildernessLevelWidget != null)
 		{
 			String wildernessLevelText = wildernessLevelWidget.getText();

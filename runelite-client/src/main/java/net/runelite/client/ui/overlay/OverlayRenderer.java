@@ -53,8 +53,8 @@ import net.runelite.api.Varbits;
 import net.runelite.api.events.BeforeRender;
 import net.runelite.api.events.ClientTick;
 import net.runelite.api.events.FocusChanged;
+import net.runelite.api.widgets.ComponentID;
 import net.runelite.api.widgets.Widget;
-import net.runelite.api.widgets.WidgetInfo;
 import net.runelite.api.widgets.WidgetItem;
 import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.chat.QueuedMessage;
@@ -682,7 +682,7 @@ public class OverlayRenderer extends MouseAdapter
 			chatMessageManager.queue(QueuedMessage.builder()
 				.type(ChatMessageType.CONSOLE)
 				.runeLiteFormattedMessage("You've repositioned one of the in-game interfaces. Hold " + runeLiteConfig.dragHotkey() +
-					" and drag to reposition the interface again, or " + runeLiteConfig.dragHotkey() + " and right click to reset.")
+					" and drag to reposition the interface again, or " + runeLiteConfig.dragHotkey() + " and right-click to reset.")
 				.build());
 		}
 
@@ -784,7 +784,7 @@ public class OverlayRenderer extends MouseAdapter
 
 	private boolean shouldInvalidateBounds()
 	{
-		final Widget chatbox = client.getWidget(WidgetInfo.CHATBOX);
+		final Widget chatbox = client.getWidget(ComponentID.CHATBOX_FRAME);
 		final boolean resizeableChanged = isResizeable != client.isResized();
 		boolean changed = false;
 
@@ -829,14 +829,14 @@ public class OverlayRenderer extends MouseAdapter
 		{
 			if (client.getVarbitValue(Varbits.SIDE_PANELS) == 1)
 			{
-				return client.getWidget(WidgetInfo.RESIZABLE_VIEWPORT_BOTTOM_LINE);
+				return client.getWidget(ComponentID.RESIZABLE_VIEWPORT_BOTTOM_LINE_RESIZABLE_VIEWPORT_BOTTOM_LINE);
 			}
 			else
 			{
-				return client.getWidget(WidgetInfo.RESIZABLE_VIEWPORT_OLD_SCHOOL_BOX);
+				return client.getWidget(ComponentID.RESIZABLE_VIEWPORT_RESIZABLE_VIEWPORT_OLD_SCHOOL_BOX);
 			}
 		}
-		return client.getWidget(WidgetInfo.FIXED_VIEWPORT);
+		return client.getWidget(ComponentID.FIXED_VIEWPORT_FIXED_VIEWPORT);
 	}
 
 	private OverlayBounds buildSnapCorners()

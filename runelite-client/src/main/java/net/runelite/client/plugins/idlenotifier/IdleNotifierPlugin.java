@@ -52,8 +52,10 @@ import net.runelite.api.events.GraphicChanged;
 import net.runelite.api.events.HitsplatApplied;
 import net.runelite.api.events.InteractingChanged;
 import net.runelite.api.events.NpcChanged;
+import net.runelite.api.events.VarbitChanged;
 import net.runelite.client.Notifier;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.config.Notification;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
@@ -84,6 +86,9 @@ public class IdleNotifierPlugin extends Plugin
 	@Inject
 	private IdleNotifierConfig config;
 
+	@Inject
+	private ConfigManager configManager;
+
 	private Instant lastAnimating;
 	private int lastAnimation = IDLE;
 	private Instant lastInteracting;
@@ -103,6 +108,7 @@ public class IdleNotifierPlugin extends Plugin
 	private Instant sixHourWarningTime;
 	private boolean ready;
 	private boolean lastInteractWasCombat;
+	private static final int BUFF_BAR_NOT_DISPLAYED = -1;
 
 	@Provides
 	IdleNotifierConfig provideConfig(ConfigManager configManager)
@@ -115,6 +121,7 @@ public class IdleNotifierPlugin extends Plugin
 	{
 		// can't tell when 6hr will be if enabled while already logged in
 		sixHourWarningTime = null;
+		migrateConfig();
 	}
 
 	@Subscribe
@@ -150,7 +157,58 @@ public class IdleNotifierPlugin extends Plugin
 			case WOODCUTTING_3A_AXE:
 			case WOODCUTTING_CRYSTAL:
 			case WOODCUTTING_TRAILBLAZER:
+			case WOODCUTTING_2H_BRONZE:
+			case WOODCUTTING_2H_IRON:
+			case WOODCUTTING_2H_STEEL:
+			case WOODCUTTING_2H_BLACK:
+			case WOODCUTTING_2H_MITHRIL:
+			case WOODCUTTING_2H_ADAMANT:
+			case WOODCUTTING_2H_RUNE:
+			case WOODCUTTING_2H_DRAGON:
+			case WOODCUTTING_2H_CRYSTAL:
+			case WOODCUTTING_2H_CRYSTAL_INACTIVE:
+			case WOODCUTTING_2H_3A:
+			/* Woodcutting: Ents & Canoes */
+			case WOODCUTTING_ENT_BRONZE:
+			case WOODCUTTING_ENT_IRON:
+			case WOODCUTTING_ENT_STEEL:
+			case WOODCUTTING_ENT_BLACK:
+			case WOODCUTTING_ENT_MITHRIL:
+			case WOODCUTTING_ENT_ADAMANT:
+			case WOODCUTTING_ENT_RUNE:
+			case WOODCUTTING_ENT_GILDED:
+			case WOODCUTTING_ENT_DRAGON:
+			case WOODCUTTING_ENT_DRAGON_OR:
+			case WOODCUTTING_ENT_INFERNAL:
+			case WOODCUTTING_ENT_INFERNAL_OR:
+			case WOODCUTTING_ENT_3A:
+			case WOODCUTTING_ENT_CRYSTAL:
+			case WOODCUTTING_ENT_CRYSTAL_INACTIVE:
+			case WOODCUTTING_ENT_TRAILBLAZER:
+			case WOODCUTTING_ENT_2H_BRONZE:
+			case WOODCUTTING_ENT_2H_IRON:
+			case WOODCUTTING_ENT_2H_STEEL:
+			case WOODCUTTING_ENT_2H_BLACK:
+			case WOODCUTTING_ENT_2H_MITHRIL:
+			case WOODCUTTING_ENT_2H_ADAMANT:
+			case WOODCUTTING_ENT_2H_RUNE:
+			case WOODCUTTING_ENT_2H_DRAGON:
+			case WOODCUTTING_ENT_2H_CRYSTAL:
+			case WOODCUTTING_ENT_2H_CRYSTAL_INACTIVE:
+			case WOODCUTTING_ENT_2H_3A:
 			case BLISTERWOOD_JUMP_SCARE:
+			/* Firemaking */
+			case FIREMAKING_FORESTERS_CAMPFIRE_ARCTIC_PINE:
+			case FIREMAKING_FORESTERS_CAMPFIRE_BLISTERWOOD:
+			case FIREMAKING_FORESTERS_CAMPFIRE_LOGS:
+			case FIREMAKING_FORESTERS_CAMPFIRE_MAGIC:
+			case FIREMAKING_FORESTERS_CAMPFIRE_MAHOGANY:
+			case FIREMAKING_FORESTERS_CAMPFIRE_MAPLE:
+			case FIREMAKING_FORESTERS_CAMPFIRE_OAK:
+			case FIREMAKING_FORESTERS_CAMPFIRE_REDWOOD:
+			case FIREMAKING_FORESTERS_CAMPFIRE_TEAK:
+			case FIREMAKING_FORESTERS_CAMPFIRE_WILLOW:
+			case FIREMAKING_FORESTERS_CAMPFIRE_YEW:
 			/* Cooking(Fire, Range) */
 			case COOKING_FIRE:
 			case COOKING_RANGE:
@@ -171,8 +229,17 @@ public class IdleNotifierPlugin extends Plugin
 			case CRAFTING_LEATHER:
 			case CRAFTING_POTTERS_WHEEL:
 			case CRAFTING_POTTERY_OVEN:
+			case CRAFTING_CRUSH_BLESSED_BONES:
 			/* Fletching(Cutting, Stringing, Adding feathers and heads) */
 			case FLETCHING_BOW_CUTTING:
+			case FLETCHING_ATTACH_STOCK_TO_BRONZE_LIMBS:
+			case FLETCHING_ATTACH_STOCK_TO_BLURITE_LIMBS:
+			case FLETCHING_ATTACH_STOCK_TO_IRON_LIMBS:
+			case FLETCHING_ATTACH_STOCK_TO_STEEL_LIMBS:
+			case FLETCHING_ATTACH_STOCK_TO_MITHRIL_LIMBS:
+			case FLETCHING_ATTACH_STOCK_TO_ADAMANTITE_LIMBS:
+			case FLETCHING_ATTACH_STOCK_TO_RUNITE_LIMBS:
+			case FLETCHING_ATTACH_STOCK_TO_DRAGON_LIMBS:
 			case FLETCHING_STRING_NORMAL_SHORTBOW:
 			case FLETCHING_STRING_OAK_SHORTBOW:
 			case FLETCHING_STRING_WILLOW_SHORTBOW:
@@ -284,6 +351,10 @@ public class IdleNotifierPlugin extends Plugin
 			case HERBLORE_PESTLE_AND_MORTAR:
 			case HERBLORE_POTIONMAKING:
 			case HERBLORE_MAKE_TAR:
+			case HERBLORE_MIXOLOGY_CONCENTRATE:
+			case HERBLORE_MIXOLOGY_CRYSTALIZE:
+			case HERBLORE_MIXOLOGY_HOMOGENIZE:
+			case HERBLORE_MIXOLOGY_REFINER:
 			/* Magic */
 			case MAGIC_CHARGING_ORBS:
 			case MAGIC_LUNAR_PLANK_MAKE:
@@ -311,7 +382,16 @@ public class IdleNotifierPlugin extends Plugin
 			case PISCARILIUS_CRANE_REPAIR:
 			case HOME_MAKE_TABLET:
 			case SAND_COLLECTION:
+			case MILKING_COW:
+			case CHURN_MILK_SHORT:
+			case CHURN_MILK_MEDIUM:
+			case CHURN_MILK_LONG:
+			case CLEANING_SPECIMENS_1:
+			case CLEANING_SPECIMENS_2:
 			case LOOKING_INTO:
+			case SACRIFICE_BLESSED_BONE_SHARDS:
+			case MAKING_SUNFIRE_WINE:
+			case THIEVING_VARLAMORE_STEALING_VALUABLES:
 				resetTimers();
 				lastAnimation = animation;
 				lastAnimating = Instant.now();
@@ -445,8 +525,7 @@ public class IdleNotifierPlugin extends Plugin
 		final Duration waitDuration = Duration.ofMillis(config.getIdleNotificationDelay());
 		lastCombatCountdown = Math.max(lastCombatCountdown - 1, 0);
 
-		if (client.getGameState() != GameState.LOGGED_IN
-			|| local == null
+		if (local == null
 			// If user has clicked in the last second then they're not idle so don't send idle notification
 			|| System.currentTimeMillis() - client.getMouseLastPressedMillis() < 1000
 			|| client.getKeyboardIdleTicks() < 10)
@@ -455,67 +534,155 @@ public class IdleNotifierPlugin extends Plugin
 			return;
 		}
 
-		if (config.logoutIdle() && checkIdleLogout())
+		if (checkIdleLogout())
 		{
-			notifier.notify("You are about to log out from idling too long!");
+			notifier.notify(config.logoutIdle(), "You are about to log out from idling too long!");
 		}
 
 		if (check6hrLogout())
 		{
-			notifier.notify("You are about to log out from being online for 6 hours!");
+			notifier.notify(config.sixHourLogout(), "You are about to log out from being online for 6 hours!");
 		}
 
-		if (config.animationIdle() && checkAnimationIdle(waitDuration, local))
+		if (checkAnimationIdle(waitDuration, local))
 		{
-			notifier.notify("You are now idle!");
+			notifier.notify(config.animationIdle(), "You are now idle!");
 		}
 
-		if (config.movementIdle() && checkMovementIdle(waitDuration, local))
+		if (checkMovementIdle(waitDuration, local))
 		{
-			notifier.notify("You have stopped moving!");
+			notifier.notify(config.movementIdle(), "You have stopped moving!");
 		}
 
-		if (config.interactionIdle() && checkInteractionIdle(waitDuration, local))
+		if (checkInteractionIdle(waitDuration, local))
 		{
 			if (lastInteractWasCombat)
 			{
-				notifier.notify("You are now out of combat!");
+				notifier.notify(config.interactionIdle(), "You are now out of combat!");
 			}
 			else
 			{
-				notifier.notify("You are now idle!");
+				notifier.notify(config.interactionIdle(), "You are now idle!");
 			}
 		}
 
 		if (checkLowHitpoints())
 		{
-			notifier.notify("You have low hitpoints!");
+			notifier.notify(config.getHitpointsNotification(), "You have low hitpoints!");
 		}
 
 		if (checkLowPrayer())
 		{
-			notifier.notify("You have low prayer!");
+			notifier.notify(config.getPrayerNotification(), "You have low prayer!");
 		}
 
 		if (checkLowEnergy())
 		{
-			notifier.notify("You have low run energy!");
+			notifier.notify(config.getLowEnergyNotification(), "You have low run energy!");
 		}
 
 		if (checkHighEnergy())
 		{
-			notifier.notify("You have restored run energy!");
+			notifier.notify(config.getHighEnergyNotification(), "You have restored run energy!");
 		}
 
 		if (checkLowOxygen())
 		{
-			notifier.notify("You have low oxygen!");
+			notifier.notify(config.getOxygenNotification(), "You have low oxygen!");
 		}
 
 		if (checkFullSpecEnergy())
 		{
-			notifier.notify("You have restored spec energy!");
+			notifier.notify(config.getSpecNotification(), "You have restored spec energy!");
 		}
+	}
+
+	@Subscribe
+	public void onVarbitChanged(VarbitChanged event)
+	{
+		if (event.getVarpId() == VarPlayer.BUFF_BAR_WC_GROUP_BONUS && event.getValue() == BUFF_BAR_NOT_DISPLAYED)
+		{
+			resetTimers();
+			lastAnimation = WOODCUTTING_RUNE;
+			lastAnimating = Instant.now();
+		}
+	}
+
+	private void migrateConfig()
+	{
+		String migrated = configManager.getConfiguration(IdleNotifierConfig.GROUP, "migrated");
+		if ("1".equals(migrated))
+		{
+			return;
+		}
+
+		int hitpointsThreshold = configManager.getConfiguration(IdleNotifierConfig.GROUP, "hitpoints", int.class);
+		if (hitpointsThreshold == 0)
+		{
+			configManager.setConfiguration(IdleNotifierConfig.GROUP, "hitpoints", 1);
+			configManager.setConfiguration(IdleNotifierConfig.GROUP, "hitpointsNotification", Notification.OFF);
+		}
+		else
+		{
+			configManager.setConfiguration(IdleNotifierConfig.GROUP, "hitpointsNotification", Notification.ON);
+		}
+
+		int prayerThreshold = configManager.getConfiguration(IdleNotifierConfig.GROUP, "prayer", int.class);
+		if (prayerThreshold == 0)
+		{
+			configManager.setConfiguration(IdleNotifierConfig.GROUP, "prayer", 1);
+			configManager.setConfiguration(IdleNotifierConfig.GROUP, "prayerNotification", Notification.OFF);
+		}
+		else
+		{
+			configManager.setConfiguration(IdleNotifierConfig.GROUP, "prayerNotification", Notification.ON);
+		}
+
+		int lowEnergyThreshold = configManager.getConfiguration(IdleNotifierConfig.GROUP, "lowEnergy", int.class);
+		if (lowEnergyThreshold == 100)
+		{
+			configManager.setConfiguration(IdleNotifierConfig.GROUP, "lowEnergy", 0);
+			configManager.setConfiguration(IdleNotifierConfig.GROUP, "lowEnergyNotification", Notification.OFF);
+		}
+		else
+		{
+			configManager.setConfiguration(IdleNotifierConfig.GROUP, "lowEnergyNotification", Notification.ON);
+		}
+
+		int highEnergyThreshold = configManager.getConfiguration(IdleNotifierConfig.GROUP, "highEnergy", int.class);
+		if (highEnergyThreshold == 0)
+		{
+			configManager.setConfiguration(IdleNotifierConfig.GROUP, "highEnergy", 100);
+			configManager.setConfiguration(IdleNotifierConfig.GROUP, "highEnergyNotification", Notification.OFF);
+		}
+		else
+		{
+			configManager.setConfiguration(IdleNotifierConfig.GROUP, "highEnergyNotification", Notification.ON);
+		}
+
+		int oxygenThreshold = configManager.getConfiguration(IdleNotifierConfig.GROUP, "oxygen", int.class);
+		if (oxygenThreshold == 0)
+		{
+			configManager.setConfiguration(IdleNotifierConfig.GROUP, "oxygen", 1);
+			configManager.setConfiguration(IdleNotifierConfig.GROUP, "oxygenNotification", Notification.OFF);
+		}
+		else
+		{
+			configManager.setConfiguration(IdleNotifierConfig.GROUP, "oxygenNotification", Notification.ON);
+		}
+
+		int specThreshold = configManager.getConfiguration(IdleNotifierConfig.GROUP, "spec", int.class);
+		if (specThreshold == 0)
+		{
+			configManager.setConfiguration(IdleNotifierConfig.GROUP, "spec", 1);
+			configManager.setConfiguration(IdleNotifierConfig.GROUP, "specNotification", Notification.OFF);
+		}
+		else
+		{
+			configManager.setConfiguration(IdleNotifierConfig.GROUP, "specNotification", Notification.ON);
+		}
+
+		configManager.setConfiguration(IdleNotifierConfig.GROUP, "migrated", 1);
 	}
 
 	private void checkNpcInteraction(final NPC target)
@@ -835,14 +1002,15 @@ public class IdleNotifierPlugin extends Plugin
 
 		// Reset animation idle timer
 		lastAnimating = null;
-		if (client.getGameState() == GameState.LOGIN_SCREEN || local == null || local.getAnimation() != lastAnimation)
+		var gameState = client.getGameState();
+		if (gameState == GameState.LOGIN_SCREEN || local == null || local.getAnimation() != lastAnimation)
 		{
 			lastAnimation = IDLE;
 		}
 
 		// Reset interaction idle timer
 		lastInteracting = null;
-		if (client.getGameState() == GameState.LOGIN_SCREEN || local == null || local.getInteracting() != lastInteract)
+		if (gameState == GameState.LOGIN_SCREEN || local == null || local.getInteracting() != lastInteract)
 		{
 			lastInteract = null;
 		}

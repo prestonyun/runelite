@@ -40,7 +40,6 @@ import java.util.Properties;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Supplier;
-import javax.annotation.Nullable;
 import javax.inject.Named;
 import javax.inject.Singleton;
 import lombok.AllArgsConstructor;
@@ -67,8 +66,8 @@ import okhttp3.OkHttpClient;
 public class RuneLiteModule extends AbstractModule
 {
 	private final OkHttpClient okHttpClient;
-	private final Supplier<Applet> clientLoader;
-	private final Supplier<RuntimeConfig> configSupplier;
+	private final Supplier<Client> clientLoader;
+	private final RuntimeConfigLoader configLoader;
 	private final boolean developerMode;
 	private final boolean safeMode;
 	private final boolean disableTelemetry;
@@ -83,7 +82,7 @@ public class RuneLiteModule extends AbstractModule
 		Properties properties = RuneLiteProperties.getProperties();
 		Map<Object, Object> props = new HashMap<>(properties);
 
-		RuntimeConfig runtimeConfig = configSupplier.get();
+		RuntimeConfig runtimeConfig = configLoader.get();
 		if (runtimeConfig != null && runtimeConfig.getProps() != null)
 		{
 			props.putAll(runtimeConfig.getProps());
@@ -127,6 +126,8 @@ public class RuneLiteModule extends AbstractModule
 		bind(File.class).annotatedWith(Names.named("runeLiteDir")).toInstance(RuneLite.RUNELITE_DIR);
 		bind(ScheduledExecutorService.class).toInstance(new ExecutorServiceExceptionLogger(Executors.newSingleThreadScheduledExecutor()));
 		bind(OkHttpClient.class).toInstance(okHttpClient);
+		bind(RuntimeConfigLoader.class).toInstance(configLoader);
+		bind(RuntimeConfigRefresher.class).asEagerSingleton();
 		bind(MenuManager.class);
 		bind(ChatMessageManager.class);
 		bind(ItemManager.class);
@@ -148,23 +149,23 @@ public class RuneLiteModule extends AbstractModule
 
 	@Provides
 	@Singleton
-	Applet provideApplet()
+	Applet provideApplet(Client client)
+	{
+		return (Applet) client;
+	}
+
+	@Provides
+	@Singleton
+	Client provideClient()
 	{
 		return clientLoader.get();
 	}
 
 	@Provides
 	@Singleton
-	Client provideClient(@Nullable Applet applet)
-	{
-		return applet instanceof Client ? (Client) applet : null;
-	}
-
-	@Provides
-	@Singleton
 	RuntimeConfig provideRuntimeConfig()
 	{
-		return configSupplier.get();
+		return configLoader.get();
 	}
 
 	@Provides

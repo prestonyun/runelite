@@ -28,6 +28,7 @@ import java.awt.Rectangle;
 import javax.annotation.Nullable;
 import net.runelite.api.FontTypeFace;
 import net.runelite.api.Point;
+import net.runelite.api.annotations.Component;
 import org.intellij.lang.annotations.MagicConstant;
 import org.jetbrains.annotations.Range;
 
@@ -53,6 +54,7 @@ public interface Widget
 	 *
 	 * @see WidgetID
 	 */
+	@Component
 	int getId();
 
 	/**
@@ -110,9 +112,8 @@ public interface Widget
 
 	/**
 	 * Gets a dynamic child by index
-	 *
-	 * @throws IndexOutOfBoundsException if the index is outside of the child array
 	 */
+	@Nullable
 	Widget getChild(int index);
 
 	/**
@@ -649,6 +650,11 @@ public interface Widget
 	void setAction(int index, String action);
 
 	/**
+	 * Clear the menu options on a widget.
+	 */
+	void clearActions();
+
+	/**
 	 * Sets a script to be ran when the a menu action is clicked.
 	 * hasListener must be true for this to take effect
 	 *
@@ -990,6 +996,11 @@ public interface Widget
 	/**
 	 * {@link net.runelite.api.VarPlayer}s that triggers this widgets varTransmitListener
 	 */
+	int[] getVarTransmitTrigger();
+
+	/**
+	 * {@link net.runelite.api.VarPlayer}s that triggers this widgets varTransmitListener
+	 */
 	void setVarTransmitTrigger(int ...trigger);
 
 	/**
@@ -1027,6 +1038,13 @@ public interface Widget
 	 * @param args A ScriptID, then the args for the script
 	 */
 	void setOnDragListener(Object ...args);
+
+	/**
+	 * Sets a script to be ran when the mouse is scrolled when on the widget
+	 *
+	 * @param args A ScriptID, then the args for the script
+	 */
+	void setOnScrollWheelListener(Object ...args);
 
 	/**
 	 * Container this can be dragged in

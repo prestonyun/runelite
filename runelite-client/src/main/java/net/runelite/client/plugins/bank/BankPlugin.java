@@ -2,6 +2,7 @@
  * Copyright (c) 2018, TheLonelyDev <https://github.com/TheLonelyDev>
  * Copyright (c) 2018, Jeremy Plsek <https://github.com/jplsek>
  * Copyright (c) 2019, Hydrox6 <ikada@protonmail.ch>
+ * Copyright (c) 2024, PhraZier <https://github.com/phrazier>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -27,17 +28,21 @@
 package net.runelite.client.plugins.bank;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Strings;
 import com.google.common.collect.HashMultiset;
 import com.google.common.collect.Multiset;
 import com.google.inject.Provides;
 import java.awt.event.KeyEvent;
 import java.text.ParseException;
+import java.util.HashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
+import net.runelite.api.EnumComposition;
+import net.runelite.api.EnumID;
 import net.runelite.api.InventoryID;
 import net.runelite.api.Item;
 import net.runelite.api.ItemComposition;
@@ -47,16 +52,19 @@ import net.runelite.api.MenuEntry;
 import net.runelite.api.ScriptID;
 import net.runelite.api.VarClientInt;
 import net.runelite.api.VarClientStr;
+import net.runelite.api.Varbits;
+import net.runelite.api.annotations.Component;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.events.MenuEntryAdded;
 import net.runelite.api.events.MenuShouldLeftClick;
 import net.runelite.api.events.ScriptCallbackEvent;
 import net.runelite.api.events.ScriptPostFired;
+import net.runelite.api.events.ScriptPreFired;
 import net.runelite.api.events.WidgetLoaded;
+import net.runelite.api.widgets.ComponentID;
+import net.runelite.api.widgets.InterfaceID;
 import net.runelite.api.widgets.JavaScriptCallback;
 import net.runelite.api.widgets.Widget;
-import net.runelite.api.widgets.WidgetID;
-import net.runelite.api.widgets.WidgetInfo;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.config.Keybind;
@@ -81,6 +89,7 @@ public class BankPlugin extends Plugin
 	private static final String DEPOSIT_LOOT = "Deposit loot";
 	private static final String TOGGLE_PLACEHOLDERS = "Always set placeholders";
 	private static final String SEED_VAULT_TITLE = "Seed Vault";
+	private static final int POTION_STORE_TAB = 15;
 
 	private static final String NUMBER_REGEX = "[0-9]+(\\.[0-9]+)?[kmb]?";
 	private static final Pattern VALUE_SEARCH_PATTERN = Pattern.compile("^(?<mode>qty|ge|ha|alch)?" +
@@ -109,6 +118,7 @@ public class BankPlugin extends Plugin
 	private boolean forceRightClickFlag;
 	private Multiset<Integer> itemQuantities; // bank item quantities for bank value search
 	private String searchString;
+	private ContainerPrices prices;
 
 	private final KeyListener searchHotkeyListener = new KeyListener()
 	{
@@ -123,7 +133,7 @@ public class BankPlugin extends Plugin
 			Keybind keybind = config.searchKeybind();
 			if (keybind.matches(e))
 			{
-				Widget bankContainer = client.getWidget(WidgetInfo.BANK_ITEM_CONTAINER);
+				Widget bankContainer = client.getWidget(ComponentID.BANK_ITEM_CONTAINER);
 				if (bankContainer != null && !bankContainer.isSelfHidden())
 				{
 					log.debug("Search hotkey pressed");
@@ -131,13 +141,38 @@ public class BankPlugin extends Plugin
 					e.consume();
 				}
 
-				Widget seedVaultSearchButton = client.getWidget(WidgetInfo.SEED_VAULT_SEARCH_BUTTON);
+				Widget groupStorageSearchButton = client.getWidget(ComponentID.GROUP_STORAGE_SEARCH_BUTTON);
+				if (groupStorageSearchButton != null)
+				{
+					log.debug("Search hotkey pressed");
+					clientThread.invoke(() ->
+					{
+						Widget searchButton = client.getWidget(ComponentID.GROUP_STORAGE_SEARCH_BUTTON);
+						if (searchButton == null || searchButton.isHidden())
+						{
+							return;
+						}
+
+						Object[] searchToggleArgs = searchButton.getOnOpListener();
+						if (searchToggleArgs == null)
+						{
+							return;
+						}
+
+						client.createScriptEvent(searchToggleArgs) // [clientscript,shared_bank_search_toggle]
+							.setOp(1)
+							.run();
+					});
+					e.consume();
+				}
+
+				Widget seedVaultSearchButton = client.getWidget(ComponentID.SEED_VAULT_SEARCH_BUTTON);
 				if (seedVaultSearchButton != null)
 				{
 					log.debug("Search hotkey pressed");
 					clientThread.invoke(() ->
 					{
-						Widget searchButton = client.getWidget(WidgetInfo.SEED_VAULT_SEARCH_BUTTON);
+						Widget searchButton = client.getWidget(ComponentID.SEED_VAULT_SEARCH_BUTTON);
 						if (searchButton == null || searchButton.isHidden())
 						{
 							return;
@@ -270,26 +305,35 @@ public class BankPlugin extends Plugin
 	@Subscribe
 	public void onWidgetLoaded(WidgetLoaded event)
 	{
-		if (event.getGroupId() == WidgetID.SEED_VAULT_GROUP_ID && config.seedVaultValue())
+		if (event.getGroupId() == InterfaceID.SEED_VAULT && config.seedVaultValue())
 		{
 			clientThread.invokeLater(this::updateSeedVaultTotal);
 		}
-		else if (event.getGroupId() == WidgetID.CLANRANK_POPUP // also the Jagex account ad in the bank
-			&& config.blockJagexAccountAd())
+	}
+
+	@Subscribe(priority = 1) // run prior to bank tags
+	public void onScriptPreFired(ScriptPreFired event)
+	{
+		if (event.getScriptId() == ScriptID.BANKMAIN_FINISHBUILDING)
 		{
-			var wn = client.getComponentTable()
-				.get(WidgetInfo.BANK_POPUP.getId());
-			if (wn != null)
+			// Potion storage is hacked into ~bankmain_build and works by building a fake bank tab 15
+			// Avoid computing prices when building potion storage or else this will overwrite the previously
+			// computed prices from POTIONSTORE_BUILD
+			if (client.getVarbitValue(Varbits.CURRENT_BANK_TAB) != POTION_STORE_TAB)
 			{
-				clientThread.invokeLater(() ->
-				{
-					var w = client.getWidget(WidgetID.CLANRANK_POPUP, 4).getChild(1);
-					// this is also re-used by the clear all bank fillers popup
-					if (w.getText().equals("Want more bank space?"))
-					{
-						client.closeInterface(wn, true);
-					}
-				});
+				// This is here so that it computes the tab price before bank tags layouts the tab with duplicates or placeholders.
+				prices = getWidgetContainerPrices(ComponentID.BANK_ITEM_CONTAINER, InventoryID.BANK);
+			}
+		}
+		else if (event.getScriptId() == ScriptID.POPUP_OVERLAY_YESNO_INIT)
+		{
+			var text = event.getScriptEvent().getArguments()[1];
+			// this is also re-used by the clear all bank fillers popup
+			if (((String) text).startsWith("Want more bank space?") && config.blockJagexAccountAd())
+			{
+				var wn = client.getComponentTable()
+					.get(ComponentID.BANK_POPUP);
+				clientThread.invokeAtTickEnd(() -> client.closeInterface(wn, true));
 			}
 		}
 	}
@@ -297,18 +341,25 @@ public class BankPlugin extends Plugin
 	@Subscribe
 	public void onScriptPostFired(ScriptPostFired event)
 	{
-		if (event.getScriptId() == ScriptID.BANKMAIN_BUILD)
+		int scriptId = event.getScriptId();
+		if (scriptId == ScriptID.POTIONSTORE_BUILD || scriptId == ScriptID.POTIONSTORE_DOSE_CHANGE)
 		{
-			ContainerPrices price = getWidgetContainerPrices(WidgetInfo.BANK_ITEM_CONTAINER, InventoryID.BANK);
-			if (price == null)
-			{
-				return;
-			}
-
-			Widget bankTitle = client.getWidget(WidgetInfo.BANK_TITLE_BAR);
-			bankTitle.setText(bankTitle.getText() + createValueText(price.getGePrice(), price.getHighAlchPrice()));
+			// This is called when the potion store is built and any time any of the potions change
+			prices = getPotionStoragePrice();
+			Widget bankTitle = client.getWidget(ComponentID.BANK_TITLE_BAR);
+			// The title is not overwritten by this script (but instead bankmain_build, which is only called at setup)
+			// so we can't append the price, and instead reset the whole title.
+			bankTitle.setText("Potion store " + createValueText(prices.getGePrice(), prices.getHighAlchPrice()));
 		}
-		else if (event.getScriptId() == ScriptID.BANKMAIN_SEARCH_REFRESH)
+		else if (scriptId == ScriptID.BANKMAIN_FINISHBUILDING)
+		{
+			if (prices != null)
+			{
+				Widget bankTitle = client.getWidget(ComponentID.BANK_TITLE_BAR);
+				bankTitle.setText(bankTitle.getText() + createValueText(prices.getGePrice(), prices.getHighAlchPrice()));
+			}
+		}
+		else if (scriptId == ScriptID.BANKMAIN_SEARCH_REFRESH)
 		{
 			// vanilla only lays out the bank every 40 client ticks, so if the search input has changed,
 			// and the bank wasn't laid out this tick, lay it out early
@@ -319,15 +370,15 @@ public class BankPlugin extends Plugin
 				searchString = inputText;
 			}
 		}
-		else if (event.getScriptId() == ScriptID.GROUP_IRONMAN_STORAGE_BUILD)
+		else if (scriptId == ScriptID.GROUP_IRONMAN_STORAGE_BUILD)
 		{
-			ContainerPrices price = getWidgetContainerPrices(WidgetInfo.GROUP_STORAGE_ITEM_CONTAINER, InventoryID.GROUP_STORAGE);
+			ContainerPrices price = getWidgetContainerPrices(ComponentID.GROUP_STORAGE_ITEM_CONTAINER, InventoryID.GROUP_STORAGE);
 			if (price == null)
 			{
 				return;
 			}
 
-			Widget bankTitle = client.getWidget(WidgetInfo.GROUP_STORAGE_UI).getChild(1);
+			Widget bankTitle = client.getWidget(ComponentID.GROUP_STORAGE_UI).getChild(1);
 			bankTitle.setText(bankTitle.getText() + createValueText(price.getGePrice(), price.getHighAlchPrice()));
 		}
 	}
@@ -395,7 +446,7 @@ public class BankPlugin extends Plugin
 
 	private void updateSeedVaultTotal()
 	{
-		final Widget titleContainer = client.getWidget(WidgetInfo.SEED_VAULT_TITLE_CONTAINER);
+		final Widget titleContainer = client.getWidget(ComponentID.SEED_VAULT_TITLE_CONTAINER);
 		if (titleContainer == null)
 		{
 			return;
@@ -579,9 +630,9 @@ public class BankPlugin extends Plugin
 		}
 	}
 
-	private ContainerPrices getWidgetContainerPrices(WidgetInfo widgetInfo, InventoryID inventoryID)
+	private ContainerPrices getWidgetContainerPrices(@Component int componentId, InventoryID inventoryID)
 	{
-		final Widget widget = client.getWidget(widgetInfo);
+		final Widget widget = client.getWidget(componentId);
 		final ItemContainer itemContainer = client.getItemContainer(inventoryID);
 		final Widget[] children = widget.getChildren();
 		ContainerPrices prices = null;
@@ -591,8 +642,8 @@ public class BankPlugin extends Plugin
 			long geTotal = 0, haTotal = 0;
 			log.debug("Computing bank price of {} items", itemContainer.size());
 
-			// In the bank, the first components are the bank items, followed by tabs etc. There are always 816 components regardless
-			// of bank size, but we only need to check up to the bank size.
+			// In the bank, the first components are the bank items, followed by tabs etc. There are always enough
+			// components for the max bank regardless of the bank size, but we only need to check up to the bank size.
 			for (int i = 0; i < itemContainer.size(); ++i)
 			{
 				Widget child = children[i];
@@ -608,5 +659,75 @@ public class BankPlugin extends Plugin
 		}
 
 		return prices;
+	}
+
+	private ContainerPrices getPotionStoragePrice()
+	{
+		var potionMap = new HashMap<Integer, EnumComposition>();
+
+		var potionStorePotions = client.getEnum(EnumID.POTIONSTORE_POTIONS);
+		for (int potionEnumId : potionStorePotions.getIntVals())
+		{
+			var potionEnum = client.getEnum(potionEnumId);
+
+			for (int doses = 1; doses <= 4; ++doses)
+			{
+				int itemId = potionEnum.getIntValue(doses);
+				if (itemId > -1)
+				{
+					potionMap.put(itemId, potionEnum);
+				}
+			}
+		}
+
+		potionStorePotions = client.getEnum(EnumID.POTIONSTORE_UNFINISHED_POTIONS);
+		for (int potionEnumId : potionStorePotions.getIntVals())
+		{
+			var potionEnum = client.getEnum(potionEnumId);
+			int itemId = potionEnum.getIntValue(1);
+			potionMap.put(itemId, potionEnum);
+		}
+
+		Widget w = client.getWidget(ComponentID.BANK_POTIONSTORE_CONTENT);
+		Widget[] children = w.getDynamicChildren();
+		long geTotal = 0, haTotal = 0;
+
+		for (int i = 0; i + 4 < children.length; i += 5)
+		{
+			Widget wItem = children[i + 1];
+			Widget wDoses = children[i + 3];
+
+			if (wItem.getItemId() == -1 || Strings.isNullOrEmpty(wDoses.getText()))
+			{
+				continue;
+			}
+
+			int itemId = wItem.getItemId();
+			// Doses: 1234 or Quantity: 1234
+			int doses = Integer.parseInt(wDoses.getText().split(": ")[1]);
+			var potionEnum = potionMap.get(itemId);
+			if (potionEnum == null)
+			{
+				continue;
+			}
+
+			int withdrawDoses;
+			for (withdrawDoses = 1; withdrawDoses < 4; ++withdrawDoses)
+			{
+				if (potionEnum.getIntValue(withdrawDoses) == itemId)
+				{
+					break;
+				}
+			}
+
+			int qty = doses / withdrawDoses;
+
+			log.debug("Potion store has {} of {} (doses={}, withdrawDoses={})", qty, itemId, doses, withdrawDoses);
+
+			geTotal += (long) itemManager.getItemPrice(itemId) * qty;
+			haTotal += (long) getHaPrice(itemId) * qty;
+		}
+
+		return new ContainerPrices(geTotal, haTotal);
 	}
 }

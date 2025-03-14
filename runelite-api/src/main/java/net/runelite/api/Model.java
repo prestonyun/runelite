@@ -29,7 +29,7 @@ import javax.annotation.Nonnull;
 /**
  * Represents the model of an object.
  */
-public interface Model extends Mesh, Renderable
+public interface Model extends Mesh<Model>, Renderable
 {
 	int[] getFaceColors1();
 
@@ -65,7 +65,7 @@ public interface Model extends Mesh, Renderable
 	AABB getAABB(int orientation);
 
 	int getXYZMag();
-	boolean isClickable();
+	boolean useBoundingBox();
 
 	int[] getVertexNormalsX();
 	int[] getVertexNormalsY();
@@ -83,4 +83,7 @@ public interface Model extends Mesh, Renderable
 	int[] getTexIndices3();
 
 	Model getUnskewedModel();
+
+	void drawFrustum(int zero, int xRotate, int yRotate, int zRotate, int xCamera, int yCamera, int zCamera);
+	void drawOrtho(int zero, int xRotate, int yRotate, int zRotate, int xCamera, int yCamera, int zCamera, int zoom);
 }

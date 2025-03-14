@@ -51,6 +51,7 @@ import net.runelite.client.callback.ClientThread;
 import net.runelite.client.chat.ChatClient;
 import net.runelite.client.chat.ChatCommandManager;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.config.Notification;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.game.npcoverlay.NpcOverlayService;
 import net.runelite.client.ui.overlay.OverlayManager;
@@ -71,7 +72,6 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import org.mockito.junit.MockitoJUnitRunner;
 
@@ -181,13 +181,9 @@ public class SlayerPluginTest
 	{
 		ChatMessage chatMessageEvent = new ChatMessage(null, GAMEMESSAGE, "Superior", SUPERIOR_MESSAGE, null, 0);
 
-		when(slayerConfig.showSuperiorNotification()).thenReturn(true);
+		when(slayerConfig.showSuperiorNotification()).thenReturn(Notification.ON);
 		slayerPlugin.onChatMessage(chatMessageEvent);
-		verify(notifier).notify(SUPERIOR_MESSAGE);
-
-		when(slayerConfig.showSuperiorNotification()).thenReturn(false);
-		slayerPlugin.onChatMessage(chatMessageEvent);
-		verifyNoMoreInteractions(notifier);
+		verify(notifier).notify(Notification.ON, SUPERIOR_MESSAGE);
 	}
 
 	@Test
@@ -276,11 +272,19 @@ public class SlayerPluginTest
 	@Test
 	public void npcMatching()
 	{
+		assertTrue(matches("Abyssal Sire", Task.ABYSSAL_DEMONS));
 		assertTrue(matches("Abyssal demon", Task.ABYSSAL_DEMONS));
 		assertTrue(matches("Baby blue dragon", Task.BLUE_DRAGONS));
+		assertTrue(matches("Vorkath", Task.BLUE_DRAGONS));
+		assertTrue(matches("Brutal red dragon", Task.RED_DRAGONS));
 		assertTrue(matches("Duck", Task.BIRDS));
 		assertTrue(matches("Donny the Lad", Task.BANDITS));
 		assertTrue(matches("Revenant Imp", Task.GHOSTS));
+		assertTrue(matches("Sulphur lizard", Task.LIZARDS));
+		assertTrue(matches("Spiked Turoth", Task.TUROTH));
+		assertTrue(matches("Loar shade", Task.SHADES));
+		assertTrue(matches("Loar shadow", Task.SHADES));
+		assertTrue(matches("Urium shadow", Task.SHADES));
 
 		assertFalse(matches("Rat", Task.PIRATES));
 		assertFalse(matches("Wolf", Task.WEREWOLVES));

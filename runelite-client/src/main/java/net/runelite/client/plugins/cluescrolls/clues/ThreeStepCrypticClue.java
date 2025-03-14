@@ -100,7 +100,7 @@ public class ThreeStepCrypticClue extends ClueScroll implements ObjectClueScroll
 				panelComponent.getChildren().add(TitleComponent.builder().text("Cryptic Clue #" + (i + 1)).build());
 				panelComponent.getChildren().add(LineComponent.builder().left("Solution:").build());
 				panelComponent.getChildren().add(LineComponent.builder()
-					.left(c.getSolution())
+					.left(c.getSolution(plugin))
 					.leftColor(TITLED_CONTENT_COLOR)
 					.build());
 
@@ -180,7 +180,7 @@ public class ThreeStepCrypticClue extends ClueScroll implements ObjectClueScroll
 	{
 		return clueSteps.stream()
 			.filter(s -> !s.getValue())
-			.map(s -> s.getKey().getNpc())
+			.map(s -> s.getKey().getNpc(plugin))
 			.toArray(String[]::new);
 	}
 

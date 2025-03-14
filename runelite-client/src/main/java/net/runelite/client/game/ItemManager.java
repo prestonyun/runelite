@@ -58,7 +58,6 @@ import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.RuneLiteConfig;
 import net.runelite.client.util.AsyncBufferedImage;
 import net.runelite.http.api.item.ItemPrice;
-import net.runelite.http.api.item.ItemStats;
 
 @Singleton
 @Slf4j
@@ -87,10 +86,12 @@ public class ItemManager
 
 	@Inject(optional = true)
 	@Named("activePriceThreshold")
+	@SuppressWarnings("PMD.ImmutableField")
 	private double activePriceThreshold = 5;
 
 	@Inject(optional = true)
 	@Named("lowPriceThreshold")
+	@SuppressWarnings("PMD.ImmutableField")
 	private int lowPriceThreshold = 1000;
 
 	private Map<Integer, ItemPrice> itemPrices = Collections.emptyMap();
@@ -169,6 +170,12 @@ public class ItemManager
 		put(GRACEFUL_LEGS_27455, GRACEFUL_LEGS_27453).
 		put(GRACEFUL_GLOVES_27458, GRACEFUL_GLOVES_27456).
 		put(GRACEFUL_BOOTS_27461, GRACEFUL_BOOTS_27459).
+		put(GRACEFUL_HOOD_30047, GRACEFUL_HOOD_30045).
+		put(GRACEFUL_CAPE_30050, GRACEFUL_CAPE_30048).
+		put(GRACEFUL_TOP_30053, GRACEFUL_TOP_30051).
+		put(GRACEFUL_LEGS_30056, GRACEFUL_LEGS_30054).
+		put(GRACEFUL_GLOVES_30059, GRACEFUL_GLOVES_30057).
+		put(GRACEFUL_BOOTS_30062, GRACEFUL_BOOTS_30060).
 
 		put(MAX_CAPE_13342, MAX_CAPE).
 
@@ -177,6 +184,15 @@ public class ItemManager
 
 		put(AGILITY_CAPET_13341, AGILITY_CAPET).
 		put(AGILITY_CAPE_13340, AGILITY_CAPE).
+
+		put(WOOD_CAMO_TOP_28839, WOOD_CAMO_TOP).
+		put(WOOD_CAMO_LEGS_28842, WOOD_CAMO_LEGS).
+		put(JUNGLE_CAMO_TOP_28845, JUNGLE_CAMO_TOP).
+		put(JUNGLE_CAMO_LEGS_28848, JUNGLE_CAMO_LEGS).
+		put(DESERT_CAMO_TOP_28851, DESERT_CAMO_TOP).
+		put(DESERT_CAMO_LEGS_28854, DESERT_CAMO_LEGS).
+		put(POLAR_CAMO_TOP_28857, POLAR_CAMO_TOP).
+		put(POLAR_CAMO_LEGS_28860, POLAR_CAMO_LEGS).
 		build();
 
 	@Inject
@@ -194,7 +210,7 @@ public class ItemManager
 		itemImages = CacheBuilder.newBuilder()
 			.maximumSize(128L)
 			.expireAfterAccess(1, TimeUnit.HOURS)
-			.build(new CacheLoader<ImageKey, AsyncBufferedImage>()
+			.build(new CacheLoader<>()
 			{
 				@Override
 				public AsyncBufferedImage load(ImageKey key) throws Exception
@@ -206,7 +222,7 @@ public class ItemManager
 		itemOutlines = CacheBuilder.newBuilder()
 			.maximumSize(128L)
 			.expireAfterAccess(1, TimeUnit.HOURS)
-			.build(new CacheLoader<OutlineKey, BufferedImage>()
+			.build(new CacheLoader<>()
 			{
 				@Override
 				public BufferedImage load(OutlineKey key) throws Exception
@@ -343,16 +359,38 @@ public class ItemManager
 	 * @return item stats
 	 */
 	@Nullable
-	public ItemStats getItemStats(int itemId, boolean allowNote)
+	public ItemStats getItemStats(int itemId)
 	{
 		ItemComposition itemComposition = getItemComposition(itemId);
 
-		if (itemComposition == null || itemComposition.getName() == null || (!allowNote && itemComposition.getNote() != -1))
+		if (itemComposition.getName() == null || itemComposition.getNote() != -1)
 		{
 			return null;
 		}
 
 		return itemStats.get(canonicalize(itemId));
+	}
+
+	/**
+	 * Look up an item's stats
+	 *
+	 * @param itemId item id
+	 * @return item stats
+	 * @deprecated See {@link #getItemStats(int)}
+	 */
+	@Nullable
+	@Deprecated
+	public net.runelite.http.api.item.ItemStats getItemStats(int itemId, boolean allowNote)
+	{
+		ItemComposition itemComposition = getItemComposition(itemId);
+
+		if (itemComposition.getName() == null || (!allowNote && itemComposition.getNote() != -1))
+		{
+			return null;
+		}
+
+		var stats = itemStats.get(canonicalize(itemId));
+		return stats != null ? stats.toHttpApiFormat() : null;
 	}
 
 	/**

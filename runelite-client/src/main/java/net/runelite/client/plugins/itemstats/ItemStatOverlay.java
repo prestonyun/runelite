@@ -36,10 +36,13 @@ import net.runelite.api.InventoryID;
 import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
 import net.runelite.api.MenuEntry;
+import net.runelite.api.widgets.ComponentID;
+import net.runelite.api.widgets.InterfaceID;
 import net.runelite.api.widgets.Widget;
-import net.runelite.api.widgets.WidgetID;
-import net.runelite.api.widgets.WidgetInfo;
+import net.runelite.api.widgets.WidgetUtil;
+import net.runelite.client.game.ItemEquipmentStats;
 import net.runelite.client.game.ItemManager;
+import net.runelite.client.game.ItemStats;
 import net.runelite.client.plugins.itemstats.potions.PotionDuration;
 import net.runelite.client.ui.JagexColors;
 import net.runelite.client.ui.overlay.Overlay;
@@ -47,8 +50,6 @@ import net.runelite.client.ui.overlay.tooltip.Tooltip;
 import net.runelite.client.ui.overlay.tooltip.TooltipManager;
 import net.runelite.client.util.ColorUtil;
 import net.runelite.client.util.QuantityFormatter;
-import net.runelite.http.api.item.ItemEquipmentStats;
-import net.runelite.http.api.item.ItemStats;
 import org.apache.commons.lang3.time.DurationFormatUtils;
 
 public class ItemStatOverlay extends Overlay
@@ -97,12 +98,12 @@ public class ItemStatOverlay extends Overlay
 			return null;
 		}
 
-		final int group = WidgetInfo.TO_GROUP(widget.getId());
+		final int group = WidgetUtil.componentToInterface(widget.getId());
 		int itemId = -1;
 
-		if (group == WidgetInfo.EQUIPMENT.getGroupId() ||
+		if (group == InterfaceID.EQUIPMENT ||
 			// For bank worn equipment, check widget parent to differentiate from normal bank items
-			(group == WidgetID.BANK_GROUP_ID && widget.getParentId() == WidgetInfo.BANK_EQUIPMENT_CONTAINER.getId()))
+			(group == InterfaceID.BANK && widget.getParentId() == ComponentID.BANK_INVENTORY_EQUIPMENT_ITEM_CONTAINER))
 		{
 			final Widget widgetItem = widget.getChild(1);
 			if (widgetItem != null)
@@ -110,12 +111,12 @@ public class ItemStatOverlay extends Overlay
 				itemId = widgetItem.getItemId();
 			}
 		}
-		else if (widget.getId() == WidgetInfo.INVENTORY.getId()
-			|| group == WidgetInfo.EQUIPMENT_INVENTORY_ITEMS_CONTAINER.getGroupId()
-			|| widget.getId() == WidgetInfo.BANK_ITEM_CONTAINER.getId() && config.showStatsInBank()
-			|| group == WidgetInfo.BANK_INVENTORY_ITEMS_CONTAINER.getGroupId() && config.showStatsInBank()
-			|| widget.getId() == WidgetInfo.GROUP_STORAGE_ITEM_CONTAINER.getId() && config.showStatsInBank()
-			|| group == WidgetID.GROUP_STORAGE_INVENTORY_GROUP_ID && config.showStatsInBank())
+		else if (widget.getId() == ComponentID.INVENTORY_CONTAINER
+			|| group == InterfaceID.EQUIPMENT_INVENTORY
+			|| widget.getId() == ComponentID.BANK_ITEM_CONTAINER && config.showStatsInBank()
+			|| group == InterfaceID.BANK_INVENTORY && config.showStatsInBank()
+			|| widget.getId() == ComponentID.GROUP_STORAGE_ITEM_CONTAINER && config.showStatsInBank()
+			|| group == InterfaceID.GROUP_STORAGE_INVENTORY && config.showStatsInBank())
 		{
 			itemId = widget.getItemId();
 		}
@@ -187,7 +188,7 @@ public class ItemStatOverlay extends Overlay
 
 		if (config.equipmentStats())
 		{
-			final ItemStats stats = itemManager.getItemStats(itemId, false);
+			final ItemStats stats = itemManager.getItemStats(itemId);
 
 			if (stats != null)
 			{
@@ -274,7 +275,7 @@ public class ItemStatOverlay extends Overlay
 	private ItemStats getItemStatsFromContainer(ItemContainer container, int slotID)
 	{
 		final Item item = container.getItem(slotID);
-		return item != null ? itemManager.getItemStats(item.getId(), false) : null;
+		return item != null ? itemManager.getItemStats(item.getId()) : null;
 	}
 
 	@VisibleForTesting
@@ -302,7 +303,7 @@ public class ItemStatOverlay extends Overlay
 					{
 						// Account for speed change when two handed weapon gets removed
 						// shield - (2h - unarmed) == shield - 2h + unarmed
-						other = otherEquip.isTwoHanded() ? other.subtract(UNARMED) : null;
+						other = otherEquip.isTwoHanded() ? subtract(other, UNARMED) : null;
 					}
 				}
 			}
@@ -322,7 +323,7 @@ public class ItemStatOverlay extends Overlay
 			}
 		}
 
-		final ItemStats subtracted = s.subtract(other).subtract(offHand);
+		final ItemStats subtracted = subtract(subtract(s, other), offHand);
 		final ItemEquipmentStats e = subtracted.getEquipment();
 
 		final StringBuilder b = new StringBuilder();
@@ -367,6 +368,49 @@ public class ItemStatOverlay extends Overlay
 		}
 
 		return b.toString();
+	}
+
+	private static ItemStats subtract(ItemStats one, ItemStats two)
+	{
+		if (two == null)
+		{
+			return one;
+		}
+
+		final double newWeight = one.getWeight() - two.getWeight();
+		final ItemEquipmentStats newEquipment;
+
+		if (two.getEquipment() != null)
+		{
+			final ItemEquipmentStats equipment = one.getEquipment() != null
+				? one.getEquipment()
+				: ItemEquipmentStats.builder().build();
+
+			newEquipment = ItemEquipmentStats.builder()
+				.slot(equipment.getSlot())
+				.astab(equipment.getAstab() - two.getEquipment().getAstab())
+				.aslash(equipment.getAslash() - two.getEquipment().getAslash())
+				.acrush(equipment.getAcrush() - two.getEquipment().getAcrush())
+				.amagic(equipment.getAmagic() - two.getEquipment().getAmagic())
+				.arange(equipment.getArange() - two.getEquipment().getArange())
+				.dstab(equipment.getDstab() - two.getEquipment().getDstab())
+				.dslash(equipment.getDslash() - two.getEquipment().getDslash())
+				.dcrush(equipment.getDcrush() - two.getEquipment().getDcrush())
+				.dmagic(equipment.getDmagic() - two.getEquipment().getDmagic())
+				.drange(equipment.getDrange() - two.getEquipment().getDrange())
+				.str(equipment.getStr() - two.getEquipment().getStr())
+				.rstr(equipment.getRstr() - two.getEquipment().getRstr())
+				.mdmg(equipment.getMdmg() - two.getEquipment().getMdmg())
+				.prayer(equipment.getPrayer() - two.getEquipment().getPrayer())
+				.aspeed(equipment.getAspeed() - two.getEquipment().getAspeed())
+				.build();
+		}
+		else
+		{
+			newEquipment = one.getEquipment();
+		}
+
+		return new ItemStats(one.isEquipable(), newWeight, 0, newEquipment);
 	}
 
 	private String buildStatChangeString(StatChange c)

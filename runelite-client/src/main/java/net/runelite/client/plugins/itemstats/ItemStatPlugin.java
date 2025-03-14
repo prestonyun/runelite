@@ -47,24 +47,24 @@ import net.runelite.api.Varbits;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.ScriptPostFired;
 import net.runelite.api.events.VarbitChanged;
+import net.runelite.api.widgets.ComponentID;
 import net.runelite.api.widgets.JavaScriptCallback;
 import net.runelite.api.widgets.Widget;
-import net.runelite.api.widgets.WidgetInfo;
 import net.runelite.api.widgets.WidgetTextAlignment;
 import net.runelite.api.widgets.WidgetType;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
+import net.runelite.client.game.ItemEquipmentStats;
 import net.runelite.client.game.ItemManager;
+import net.runelite.client.game.ItemStats;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.JagexColors;
 import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.util.QuantityFormatter;
-import net.runelite.http.api.item.ItemEquipmentStats;
-import net.runelite.http.api.item.ItemStats;
 
 @PluginDescriptor(
 	name = "Item Stats",
@@ -135,8 +135,8 @@ public class ItemStatPlugin extends Plugin
 	public void onGameTick(GameTick event)
 	{
 		if (itemInformationTitle != null && config.geStats()
-			&& (client.getWidget(WidgetInfo.GRAND_EXCHANGE_WINDOW_CONTAINER) == null
-			|| client.getWidget(WidgetInfo.GRAND_EXCHANGE_WINDOW_CONTAINER).isHidden()))
+			&& (client.getWidget(ComponentID.GRAND_EXCHANGE_WINDOW_CONTAINER) == null
+			|| client.getWidget(ComponentID.GRAND_EXCHANGE_WINDOW_CONTAINER).isHidden()))
 		{
 			resetGEInventory();
 		}
@@ -166,7 +166,7 @@ public class ItemStatPlugin extends Plugin
 
 	private void createItemInformation(int id)
 	{
-		final ItemStats itemStats = itemManager.getItemStats(id, false);
+		final ItemStats itemStats = itemManager.getItemStats(id);
 
 		if (itemStats == null || !itemStats.isEquipable())
 		{
@@ -180,7 +180,7 @@ public class ItemStatPlugin extends Plugin
 			return;
 		}
 
-		final Widget geInv = client.getWidget(WidgetInfo.GRAND_EXCHANGE_INVENTORY_ITEMS_CONTAINER);
+		final Widget geInv = client.getWidget(ComponentID.GRAND_EXCHANGE_INVENTORY_INVENTORY_ITEM_CONTAINER);
 
 		if (geInv == null)
 		{
@@ -314,14 +314,14 @@ public class ItemStatPlugin extends Plugin
 
 		yPos += TEXT_HEIGHT + 8;
 
-		final Map<String, Integer> miscStats = ImmutableMap.of(
+		final Map<String, Object> miscStats = ImmutableMap.of(
 			"Strength", equipmentStats.getStr(),
 			"Ranged Strength", equipmentStats.getRstr(),
 			"Magic Damage", equipmentStats.getMdmg(),
 			"Prayer Bonus", equipmentStats.getPrayer()
 		);
 
-		for (final Map.Entry<String, Integer> miscStat : miscStats.entrySet())
+		for (final Map.Entry<String, Object> miscStat : miscStats.entrySet())
 		{
 			final String name = miscStat.getKey();
 			final String value = miscStat.getValue().toString();
@@ -390,7 +390,7 @@ public class ItemStatPlugin extends Plugin
 			itemInformationTitle = null;
 		}
 
-		final Widget geInv = client.getWidget(WidgetInfo.GRAND_EXCHANGE_INVENTORY_ITEMS_CONTAINER);
+		final Widget geInv = client.getWidget(ComponentID.GRAND_EXCHANGE_INVENTORY_INVENTORY_ITEM_CONTAINER);
 		if (geInv != null)
 		{
 			geInv.setHidden(false);
@@ -415,16 +415,16 @@ public class ItemStatPlugin extends Plugin
 		{
 			if (client.getVarbitValue(Varbits.SIDE_PANELS) == 1)
 			{
-				return client.getWidget(WidgetInfo.RESIZABLE_VIEWPORT_BOTTOM_LINE_INVENTORY_CONTAINER);
+				return client.getWidget(ComponentID.RESIZABLE_VIEWPORT_BOTTOM_LINE_INVENTORY_CONTAINER);
 			}
 			else
 			{
-				return client.getWidget(WidgetInfo.RESIZABLE_VIEWPORT_INVENTORY_CONTAINER);
+				return client.getWidget(ComponentID.RESIZABLE_VIEWPORT_INVENTORY_CONTAINER);
 			}
 		}
 		else
 		{
-			return client.getWidget(WidgetInfo.FIXED_VIEWPORT_INVENTORY_CONTAINER);
+			return client.getWidget(ComponentID.FIXED_VIEWPORT_INVENTORY_CONTAINER);
 		}
 	}
 }
